@@ -5,7 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   css: {
-    // Erzwinge, dass Vite explizit deine CommonJS-PostCSS-Konfiguration nutzt:
     postcss: './postcss.config.cjs',
   },
   build: {
