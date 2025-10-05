@@ -1,170 +1,221 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import "./App.css"; // ✅ make sure styles are loaded
 
-export default function DataExplorer({ data }) {
-  const [selectedCountry, setSelectedCountry] = useState("");
-  const [selectedCity, setSelectedCity] = useState("");
-  const [selectedPeriod, setSelectedPeriod] = useState("");
-  const [selectedSubmarket, setSelectedSubmarket] = useState("");
-
-  // Initialisierung, wenn Daten verfügbar
-  useEffect(() => {
-    if (data && data.countries) {
-      const firstCountry = Object.keys(data.countries)[0];
-      const firstCity = Object.keys(data.countries[firstCountry].cities)[0];
-      const firstPeriod = Object.keys(
-        data.countries[firstCountry].cities[firstCity].periods
-      )[0];
-      const firstSub = Object.keys(
-        data.countries[firstCountry].cities[firstCity].periods[firstPeriod].subMarkets
-      )[0];
-
-      setSelectedCountry(firstCountry);
-      setSelectedCity(firstCity);
-      setSelectedPeriod(firstPeriod);
-      setSelectedSubmarket(firstSub);
-    }
-  }, [data]);
-
-  // Wenn Daten noch nicht geladen → Platzhalter anzeigen
-  if (
-    !data ||
-    !data.countries ||
-    !selectedCountry ||
-    !selectedCity ||
-    !selectedPeriod ||
-    !selectedSubmarket
-  ) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-500">
-        Loading market data...
-      </div>
-    );
+function fmtNumber(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "–";
+  if (Math.abs(n) >= 1000) {
+    return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
   }
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
 
-  // --- Zugriff auf Daten ---
-  const country = data.countries[selectedCountry];
-  const city = country.cities[selectedCity];
-  const period = city.periods[selectedPeriod];
-  const subMarket = period.subMarkets[selectedSubmarket];
+function fmtMoney(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "–";
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
+function fmtPercent(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "–";
+  if (Math.abs(n) <= 1) {
+    return (n * 100).toFixed(2) + "%";
+  } else {
+    return Number(n).toFixed(2) + "%";
+  }
+}
+
+function Row({ label, value }) {
   return (
-    <div className="max-w-md mx-auto p-4">
-      {/* --- DROPDOWNS --- */}
-      <div className="space-y-3 mb-6">
-        <select
-          value={selectedCountry}
-          onChange={(e) => {
-            const c = e.target.value;
-            const firstCity = Object.keys(data.countries[c].cities)[0];
-            const firstPeriod = Object.keys(
-              data.countries[c].cities[firstCity].periods
-            )[0];
-            const firstSub = Object.keys(
-              data.countries[c].cities[firstCity].periods[firstPeriod].subMarkets
-            )[0];
-            setSelectedCountry(c);
-            setSelectedCity(firstCity);
-            setSelectedPeriod(firstPeriod);
-            setSelectedSubmarket(firstSub);
-          }}
-          className="w-full p-2 border border-gray-300 rounded-md"
-        >
-          {Object.keys(data.countries).map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
-
-        <select
-          value={selectedCity}
-          onChange={(e) => {
-            const city = e.target.value;
-            const firstPeriod = Object.keys(
-              data.countries[selectedCountry].cities[city].periods
-            )[0];
-            const firstSub = Object.keys(
-              data.countries[selectedCountry].cities[city].periods[firstPeriod].subMarkets
-            )[0];
-            setSelectedCity(city);
-            setSelectedPeriod(firstPeriod);
-            setSelectedSubmarket(firstSub);
-          }}
-          className="w-full p-2 border border-gray-300 rounded-md"
-        >
-          {Object.keys(country.cities).map((city) => (
-            <option key={city}>{city}</option>
-          ))}
-        </select>
-
-        <select
-          value={selectedSubmarket}
-          onChange={(e) => setSelectedSubmarket(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded-md"
-        >
-          {Object.keys(period.subMarkets).map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </select>
-
-        <select
-          value={selectedPeriod}
-          onChange={(e) => setSelectedPeriod(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded-md"
-        >
-          {Object.keys(city.periods).map((p) => (
-            <option key={p}>{p}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* --- TITEL --- */}
-      <h2 className="text-xl font-bold text-center mb-2">
-        {selectedCity} Office Market — {selectedPeriod} — {selectedSubmarket}
-      </h2>
-
-      {/* --- MARKET METRICS --- */}
-      <div className="bg-blue-900 text-white font-semibold px-3 py-1 rounded-t-md">
-        📊 Market Metrics
-      </div>
-      <div className="border border-t-0 border-blue-900 rounded-b-md overflow-hidden divide-y divide-gray-200">
-        {renderMetric("Total Stock (sqm)", subMarket.totalStock)}
-        {renderMetric("Vacancy (sqm)", subMarket.vacancy)}
-        {renderMetric("Vacancy Rate (%)", (subMarket.vacancyRate * 100).toFixed(2) + "%")}
-        {renderMetric("Take-up (sqm)", subMarket.takeUp)}
-        {renderMetric("Net Absorption (sqm)", subMarket.netAbsorption)}
-        {renderMetric("Completions YTD (sqm)", subMarket.completionsYTD)}
-        {renderMetric("Under Construction (sqm)", subMarket.underConstruction)}
-        {renderMetric("Prime Rent (€/sqm/month)", subMarket.primeRentEurSqmMonth)}
-        {renderMetric("Average Rent (€/sqm/month)", subMarket.averageRentEurSqmMonth)}
-        {renderMetric("Prime Yield (%)", (subMarket.primeYield * 100).toFixed(2) + "%")}
-      </div>
-
-      {/* --- LEASING CONDITIONS --- */}
-      <div className="bg-blue-900 text-white font-semibold px-3 py-1 mt-6 rounded-t-md">
-        📝 Leasing Conditions
-      </div>
-      <div className="border border-t-0 border-blue-900 rounded-b-md overflow-hidden divide-y divide-gray-200">
-        {renderMetric("Rent-free period (month/year)", period.leasing.rentFreeMonthPerYear)}
-        {renderMetric("Lease length (months)", period.leasing.leaseLengthMonths)}
-        {renderMetric("Fit-out (€/sqm)", period.leasing.fitOutEurSqmShellCore)}
-        {renderMetric("Service charge (€/sqm/month)", period.leasing.serviceChargeEurSqmMonth)}
-      </div>
+    <div className="row">
+      <div className="row-label">{label}</div>
+      <div className="row-value">{value}</div>
     </div>
   );
 }
 
-/* --- Helper-Komponente für jede Zeile --- */
-function renderMetric(label, value) {
-  const displayValue =
-    value === null || value === undefined || value === "" ? "n/a" : value;
+export default function DataExplorer() {
+  const [raw, setRaw] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorLoading, setErrorLoading] = useState(null);
+
+  const [country, setCountry] = useState("");
+  const [city, setCity] = useState("");
+  const [submarket, setSubmarket] = useState("");
+  const [period, setPeriod] = useState("");
+
+  // initial load
+  useEffect(() => {
+    setLoading(true);
+    fetch("/market_data.json")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((json) => {
+        setRaw(json);
+        setLoading(false);
+        const countries = Object.keys(json?.countries || {});
+        if (countries.length) {
+          const firstCountry = countries[0];
+          setCountry(firstCountry);
+          const firstCity = Object.keys(json.countries[firstCountry]?.cities || {})[0] || "";
+          setCity(firstCity);
+          const periods = Object.keys(json.countries[firstCountry]?.cities?.[firstCity]?.periods || {});
+          if (periods.length) setPeriod(periods[0]);
+
+          // ersten Submarkt setzen
+          const firstSubmarkets =
+            periods.length > 0
+              ? Object.keys(json.countries[firstCountry]?.cities?.[firstCity]?.periods?.[periods[0]]?.subMarkets || {})
+              : [];
+          if (firstSubmarkets.length) setSubmarket(firstSubmarkets[0]);
+        }
+      })
+      .catch((err) => {
+        setErrorLoading(err.message || String(err));
+        setLoading(false);
+      });
+  }, []);
+
+  const countries = Object.keys(raw?.countries || {});
+  const cities = country ? Object.keys(raw?.countries?.[country]?.cities || {}) : [];
+  const periods = city ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {}) : [];
+
+  const selectedPeriodObj = raw?.countries?.[country]?.cities?.[city]?.periods?.[period] || null;
+  const submarketsFromJson = selectedPeriodObj?.subMarkets ? Object.keys(selectedPeriodObj.subMarkets) : [];
+  const submarketOptions = submarketsFromJson;
+
+  const cityObj = raw?.countries?.[country]?.cities?.[city] || {};
+  const leasingCity = cityObj?.leasing || {};
+
+  const metricSource =
+    submarket && selectedPeriodObj?.subMarkets?.[submarket]
+      ? selectedPeriodObj.subMarkets[submarket]
+      : cityObj?.periods?.[period]?.market || null;
+
+  const leasingSource =
+    (submarket && selectedPeriodObj?.subMarkets?.[submarket]?.leasing) ||
+    (cityObj?.periods?.[period]?.leasing) ||
+    leasingCity ||
+    {};
+
+  const g = (key) => {
+    if (!metricSource) return null;
+    switch (key) {
+      case "totalStock": return metricSource.totalStock ?? null;
+      case "vacancy": return metricSource.vacancy ?? null;
+      case "vacancyRate": return metricSource.vacancyRate ?? null;
+      case "takeUp": return metricSource.takeUp ?? null;
+      case "netAbsorption": return metricSource.netAbsorption ?? null;
+      case "completionsYTD": return metricSource.completionsYTD ?? null;
+      case "underConstruction": return metricSource.underConstruction ?? null;
+      case "primeRentEurSqmMonth": return metricSource.primeRentEurSqmMonth ?? null;
+      case "averageRentEurSqmMonth": return metricSource.averageRentEurSqmMonth ?? null;
+      case "primeYield": return metricSource.primeYield ?? null;
+      default: return metricSource[key] ?? null;
+    }
+  };
+
+  // keep hook always at top-level
+  useEffect(() => {
+    if (periods.length && !periods.includes(period)) {
+      setPeriod(periods[0]);
+    }
+    // wenn Submarket nicht mehr existiert → ersten aus JSON wählen
+    if (submarketsFromJson.length && !submarketsFromJson.includes(submarket)) {
+      setSubmarket(submarketsFromJson[0]);
+    }
+  }, [city, country, raw, periods, submarketsFromJson]); // eslint-disable-line
+
+  if (loading) {
+    return <div style={{ padding: 30 }}>Loading market data…</div>;
+  }
+  if (errorLoading) {
+    return <div style={{ padding: 30, color: "crimson" }}>Error loading data: {errorLoading}</div>;
+  }
 
   return (
-    <div className="flex justify-between items-start px-3 py-1.5 bg-white even:bg-gray-50">
-      <span className="text-sm leading-tight whitespace-normal break-words max-w-[70%]">
-        {label}
-      </span>
-      <span className="text-sm text-right font-medium ml-2 whitespace-nowrap">
-        {displayValue}
-      </span>
+    <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
+      <h1>{city} Office Market</h1>
+
+      <div>
+        <select
+          value={country}
+          onChange={(e) => {
+            const c = e.target.value;
+            setCountry(c);
+            const firstCity = Object.keys(raw?.countries?.[c]?.cities || {})[0] || "";
+            setCity(firstCity);
+            const newPeriods = Object.keys(raw?.countries?.[c]?.cities?.[firstCity]?.periods || {});
+            setPeriod(newPeriods[0] || "");
+            const newSubmarkets =
+              newPeriods.length > 0
+                ? Object.keys(raw?.countries?.[c]?.cities?.[firstCity]?.periods?.[newPeriods[0]]?.subMarkets || {})
+                : [];
+            setSubmarket(newSubmarkets[0] || "");
+          }}
+        >
+          {countries.map((c) => <option key={c}>{c}</option>)}
+        </select>
+
+        <select
+          value={city}
+          onChange={(e) => {
+            const cityVal = e.target.value;
+            setCity(cityVal);
+            const newPeriods = Object.keys(raw?.countries?.[country]?.cities?.[cityVal]?.periods || {});
+            setPeriod(newPeriods[0] || "");
+            const newSubmarkets =
+              newPeriods.length > 0
+                ? Object.keys(raw?.countries?.[country]?.cities?.[cityVal]?.periods?.[newPeriods[0]]?.subMarkets || {})
+                : [];
+            setSubmarket(newSubmarkets[0] || "");
+          }}
+        >
+          {cities.map((ct) => <option key={ct}>{ct}</option>)}
+        </select>
+
+        <select value={submarket} onChange={(e) => setSubmarket(e.target.value)}>
+          {submarketOptions.map((sm) => <option key={sm}>{sm}</option>)}
+        </select>
+
+        <select value={period} onChange={(e) => setPeriod(e.target.value)}>
+          {periods.map((p) => <option key={p}>{p}</option>)}
+        </select>
+      </div>
+
+      <h2>{city} Office Market — {period} — {submarket}</h2>
+
+      {!metricSource && <div>No data available for this selection.</div>}
+
+      {metricSource && (
+        <>
+          <div className="section-box">
+            <div className="section-header">
+              <span>📊</span> Market Metrics
+            </div>
+            <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
+            <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
+            <Row label="Vacancy Rate (%)" value={fmtPercent(g("vacancyRate"))} />
+            <Row label="YTD Take-Up (sqm)" value={fmtNumber(g("takeUp"))} />
+            <Row label="Net Absorption (sqm)" value={fmtNumber(g("netAbsorption"))} />
+            <Row label="YTD Completions (sqm)" value={fmtNumber(g("completionsYTD"))} />
+            <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
+            <Row label="Prime Rent (€/sqm/month)" value={fmtMoney(g("primeRentEurSqmMonth"))} />
+            <Row label="Average Rent (€/sqm/month)" value={fmtMoney(g("averageRentEurSqmMonth"))} />
+            <Row label="Prime Yield (%)" value={fmtPercent(g("primeYield"))} />
+          </div>
+
+          <div className="section-box">
+            <div className="section-header">
+              <span>📝</span> Leasing Conditions
+            </div>
+            <Row label="Rent-free period (month/year)" value={leasingSource?.rentFreeMonthPerYear ?? "–"} />
+            <Row label="Lease length (months)" value={leasingSource?.leaseLengthMonths ?? "–"} />
+            <Row label="Fit-out (€/sqm)" value={leasingSource?.fitOutEurSqmShellCore ?? "–"} />
+            <Row label="Service charge (€/sqm/month)" value={leasingSource?.serviceChargeEurSqmMonth ?? "–"} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
