@@ -1,17 +1,47 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export default function DataExplorer({ data }) {
-  const [selectedCountry, setSelectedCountry] = useState(Object.keys(data.countries)[0]);
-  const [selectedCity, setSelectedCity] = useState(Object.keys(data.countries[selectedCountry].cities)[0]);
-  const [selectedPeriod, setSelectedPeriod] = useState(
-    Object.keys(data.countries[selectedCountry].cities[selectedCity].periods)[0]
-  );
-  const [selectedSubmarket, setSelectedSubmarket] = useState(
-    Object.keys(
-      data.countries[selectedCountry].cities[selectedCity].periods[selectedPeriod].subMarkets
-    )[0]
-  );
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedCity, setSelectedCity] = useState("");
+  const [selectedPeriod, setSelectedPeriod] = useState("");
+  const [selectedSubmarket, setSelectedSubmarket] = useState("");
 
+  // Initialisierung, wenn Daten verfügbar
+  useEffect(() => {
+    if (data && data.countries) {
+      const firstCountry = Object.keys(data.countries)[0];
+      const firstCity = Object.keys(data.countries[firstCountry].cities)[0];
+      const firstPeriod = Object.keys(
+        data.countries[firstCountry].cities[firstCity].periods
+      )[0];
+      const firstSub = Object.keys(
+        data.countries[firstCountry].cities[firstCity].periods[firstPeriod].subMarkets
+      )[0];
+
+      setSelectedCountry(firstCountry);
+      setSelectedCity(firstCity);
+      setSelectedPeriod(firstPeriod);
+      setSelectedSubmarket(firstSub);
+    }
+  }, [data]);
+
+  // Wenn Daten noch nicht geladen → Platzhalter anzeigen
+  if (
+    !data ||
+    !data.countries ||
+    !selectedCountry ||
+    !selectedCity ||
+    !selectedPeriod ||
+    !selectedSubmarket
+  ) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-gray-500">
+        Loading market data...
+      </div>
+    );
+  }
+
+  // --- Zugriff auf Daten ---
   const country = data.countries[selectedCountry];
   const city = country.cities[selectedCity];
   const period = city.periods[selectedPeriod];
@@ -25,14 +55,16 @@ export default function DataExplorer({ data }) {
           value={selectedCountry}
           onChange={(e) => {
             const c = e.target.value;
-            setSelectedCountry(c);
             const firstCity = Object.keys(data.countries[c].cities)[0];
-            setSelectedCity(firstCity);
-            const firstPeriod = Object.keys(data.countries[c].cities[firstCity].periods)[0];
-            setSelectedPeriod(firstPeriod);
+            const firstPeriod = Object.keys(
+              data.countries[c].cities[firstCity].periods
+            )[0];
             const firstSub = Object.keys(
               data.countries[c].cities[firstCity].periods[firstPeriod].subMarkets
             )[0];
+            setSelectedCountry(c);
+            setSelectedCity(firstCity);
+            setSelectedPeriod(firstPeriod);
             setSelectedSubmarket(firstSub);
           }}
           className="w-full p-2 border border-gray-300 rounded-md"
@@ -46,14 +78,14 @@ export default function DataExplorer({ data }) {
           value={selectedCity}
           onChange={(e) => {
             const city = e.target.value;
-            setSelectedCity(city);
             const firstPeriod = Object.keys(
               data.countries[selectedCountry].cities[city].periods
             )[0];
-            setSelectedPeriod(firstPeriod);
             const firstSub = Object.keys(
               data.countries[selectedCountry].cities[city].periods[firstPeriod].subMarkets
             )[0];
+            setSelectedCity(city);
+            setSelectedPeriod(firstPeriod);
             setSelectedSubmarket(firstSub);
           }}
           className="w-full p-2 border border-gray-300 rounded-md"
@@ -120,7 +152,7 @@ export default function DataExplorer({ data }) {
   );
 }
 
-/* Helper-Komponente für jede Zeile */
+/* --- Helper-Komponente für jede Zeile --- */
 function renderMetric(label, value) {
   const displayValue =
     value === null || value === undefined || value === "" ? "n/a" : value;
