@@ -23,11 +23,42 @@ function fmtPercent(n) {
   }
 }
 
+// ✅ corrected Row layout: single line, no wrapping
 function Row({ label, value }) {
   return (
-    <div className="row">
-      <div className="row-label">{label}</div>
-      <div className="row-value">{value}</div>
+    <div
+      className="row"
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        padding: "4px 0",
+      }}
+    >
+      <div
+        className="row-label"
+        style={{
+          flex: "1",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        className="row-value"
+        style={{
+          textAlign: "right",
+          whiteSpace: "nowrap",
+          marginLeft: "8px",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -101,26 +132,35 @@ export default function DataExplorer() {
   const g = (key) => {
     if (!metricSource) return null;
     switch (key) {
-      case "totalStock": return metricSource.totalStock ?? null;
-      case "vacancy": return metricSource.vacancy ?? null;
-      case "vacancyRate": return metricSource.vacancyRate ?? null;
-      case "takeUp": return metricSource.takeUp ?? null;
-      case "netAbsorption": return metricSource.netAbsorption ?? null;
-      case "completionsYTD": return metricSource.completionsYTD ?? null;
-      case "underConstruction": return metricSource.underConstruction ?? null;
-      case "primeRentEurSqmMonth": return metricSource.primeRentEurSqmMonth ?? null;
-      case "averageRentEurSqmMonth": return metricSource.averageRentEurSqmMonth ?? null;
-      case "primeYield": return metricSource.primeYield ?? null;
-      default: return metricSource[key] ?? null;
+      case "totalStock":
+        return metricSource.totalStock ?? null;
+      case "vacancy":
+        return metricSource.vacancy ?? null;
+      case "vacancyRate":
+        return metricSource.vacancyRate ?? null;
+      case "takeUp":
+        return metricSource.takeUp ?? null;
+      case "netAbsorption":
+        return metricSource.netAbsorption ?? null;
+      case "completionsYTD":
+        return metricSource.completionsYTD ?? null;
+      case "underConstruction":
+        return metricSource.underConstruction ?? null;
+      case "primeRentEurSqmMonth":
+        return metricSource.primeRentEurSqmMonth ?? null;
+      case "averageRentEurSqmMonth":
+        return metricSource.averageRentEurSqmMonth ?? null;
+      case "primeYield":
+        return metricSource.primeYield ?? null;
+      default:
+        return metricSource[key] ?? null;
     }
   };
 
-  // keep hook always at top-level
   useEffect(() => {
     if (periods.length && !periods.includes(period)) {
       setPeriod(periods[0]);
     }
-    // wenn Submarket nicht mehr existiert → ersten aus JSON wählen
     if (submarketsFromJson.length && !submarketsFromJson.includes(submarket)) {
       setSubmarket(submarketsFromJson[0]);
     }
@@ -154,7 +194,9 @@ export default function DataExplorer() {
             setSubmarket(newSubmarkets[0] || "");
           }}
         >
-          {countries.map((c) => <option key={c}>{c}</option>)}
+          {countries.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
         </select>
 
         <select
@@ -171,19 +213,27 @@ export default function DataExplorer() {
             setSubmarket(newSubmarkets[0] || "");
           }}
         >
-          {cities.map((ct) => <option key={ct}>{ct}</option>)}
+          {cities.map((ct) => (
+            <option key={ct}>{ct}</option>
+          ))}
         </select>
 
         <select value={submarket} onChange={(e) => setSubmarket(e.target.value)}>
-          {submarketOptions.map((sm) => <option key={sm}>{sm}</option>)}
+          {submarketOptions.map((sm) => (
+            <option key={sm}>{sm}</option>
+          ))}
         </select>
 
         <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-          {periods.map((p) => <option key={p}>{p}</option>)}
+          {periods.map((p) => (
+            <option key={p}>{p}</option>
+          ))}
         </select>
       </div>
 
-      <h2>{city} Office Market — {period} — {submarket}</h2>
+      <h2>
+        {city} Office Market — {period} — {submarket}
+      </h2>
 
       {!metricSource && <div>No data available for this selection.</div>}
 
