@@ -1,271 +1,138 @@
-import React, { useEffect, useState } from "react";
-import "./App.css"; // ✅ make sure styles are loaded
+import React, { useState } from "react";
 
-function fmtNumber(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
-  if (Math.abs(n) >= 1000) {
-    return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  }
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-
-function fmtMoney(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtPercent(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
-  if (Math.abs(n) <= 1) {
-    return (n * 100).toFixed(2) + "%";
-  } else {
-    return Number(n).toFixed(2) + "%";
-  }
-}
-
-// ✅ corrected Row layout: single line, no wrapping
-function Row({ label, value }) {
-  return (
-    <div
-      className="row"
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        padding: "4px 0",
-      }}
-    >
-      <div
-        className="row-label"
-        style={{
-          flex: "1",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        className="row-value"
-        style={{
-          textAlign: "right",
-          whiteSpace: "nowrap",
-          marginLeft: "8px",
-        }}
-      >
-        {value}
-      </div>
-    </div>
+export default function DataExplorer({ data }) {
+  const [selectedCountry, setSelectedCountry] = useState(Object.keys(data.countries)[0]);
+  const [selectedCity, setSelectedCity] = useState(Object.keys(data.countries[selectedCountry].cities)[0]);
+  const [selectedPeriod, setSelectedPeriod] = useState(
+    Object.keys(data.countries[selectedCountry].cities[selectedCity].periods)[0]
   );
-}
+  const [selectedSubmarket, setSelectedSubmarket] = useState(
+    Object.keys(
+      data.countries[selectedCountry].cities[selectedCity].periods[selectedPeriod].subMarkets
+    )[0]
+  );
 
-export default function DataExplorer() {
-  const [raw, setRaw] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [errorLoading, setErrorLoading] = useState(null);
-
-  const [country, setCountry] = useState("");
-  const [city, setCity] = useState("");
-  const [submarket, setSubmarket] = useState("");
-  const [period, setPeriod] = useState("");
-
-  // initial load
-  useEffect(() => {
-    setLoading(true);
-    fetch("/market_data.json")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((json) => {
-        setRaw(json);
-        setLoading(false);
-        const countries = Object.keys(json?.countries || {});
-        if (countries.length) {
-          const firstCountry = countries[0];
-          setCountry(firstCountry);
-          const firstCity = Object.keys(json.countries[firstCountry]?.cities || {})[0] || "";
-          setCity(firstCity);
-          const periods = Object.keys(json.countries[firstCountry]?.cities?.[firstCity]?.periods || {});
-          if (periods.length) setPeriod(periods[0]);
-
-          // ersten Submarkt setzen
-          const firstSubmarkets =
-            periods.length > 0
-              ? Object.keys(json.countries[firstCountry]?.cities?.[firstCity]?.periods?.[periods[0]]?.subMarkets || {})
-              : [];
-          if (firstSubmarkets.length) setSubmarket(firstSubmarkets[0]);
-        }
-      })
-      .catch((err) => {
-        setErrorLoading(err.message || String(err));
-        setLoading(false);
-      });
-  }, []);
-
-  const countries = Object.keys(raw?.countries || {});
-  const cities = country ? Object.keys(raw?.countries?.[country]?.cities || {}) : [];
-  const periods = city ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {}) : [];
-
-  const selectedPeriodObj = raw?.countries?.[country]?.cities?.[city]?.periods?.[period] || null;
-  const submarketsFromJson = selectedPeriodObj?.subMarkets ? Object.keys(selectedPeriodObj.subMarkets) : [];
-  const submarketOptions = submarketsFromJson;
-
-  const cityObj = raw?.countries?.[country]?.cities?.[city] || {};
-  const leasingCity = cityObj?.leasing || {};
-
-  const metricSource =
-    submarket && selectedPeriodObj?.subMarkets?.[submarket]
-      ? selectedPeriodObj.subMarkets[submarket]
-      : cityObj?.periods?.[period]?.market || null;
-
-  const leasingSource =
-    (submarket && selectedPeriodObj?.subMarkets?.[submarket]?.leasing) ||
-    (cityObj?.periods?.[period]?.leasing) ||
-    leasingCity ||
-    {};
-
-  const g = (key) => {
-    if (!metricSource) return null;
-    switch (key) {
-      case "totalStock":
-        return metricSource.totalStock ?? null;
-      case "vacancy":
-        return metricSource.vacancy ?? null;
-      case "vacancyRate":
-        return metricSource.vacancyRate ?? null;
-      case "takeUp":
-        return metricSource.takeUp ?? null;
-      case "netAbsorption":
-        return metricSource.netAbsorption ?? null;
-      case "completionsYTD":
-        return metricSource.completionsYTD ?? null;
-      case "underConstruction":
-        return metricSource.underConstruction ?? null;
-      case "primeRentEurSqmMonth":
-        return metricSource.primeRentEurSqmMonth ?? null;
-      case "averageRentEurSqmMonth":
-        return metricSource.averageRentEurSqmMonth ?? null;
-      case "primeYield":
-        return metricSource.primeYield ?? null;
-      default:
-        return metricSource[key] ?? null;
-    }
-  };
-
-  useEffect(() => {
-    if (periods.length && !periods.includes(period)) {
-      setPeriod(periods[0]);
-    }
-    if (submarketsFromJson.length && !submarketsFromJson.includes(submarket)) {
-      setSubmarket(submarketsFromJson[0]);
-    }
-  }, [city, country, raw, periods, submarketsFromJson]); // eslint-disable-line
-
-  if (loading) {
-    return <div style={{ padding: 30 }}>Loading market data…</div>;
-  }
-  if (errorLoading) {
-    return <div style={{ padding: 30, color: "crimson" }}>Error loading data: {errorLoading}</div>;
-  }
+  const country = data.countries[selectedCountry];
+  const city = country.cities[selectedCity];
+  const period = city.periods[selectedPeriod];
+  const subMarket = period.subMarkets[selectedSubmarket];
 
   return (
-    <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
-      <h1>{city} Office Market</h1>
-
-      <div>
+    <div className="max-w-md mx-auto p-4">
+      {/* --- DROPDOWNS --- */}
+      <div className="space-y-3 mb-6">
         <select
-          value={country}
+          value={selectedCountry}
           onChange={(e) => {
             const c = e.target.value;
-            setCountry(c);
-            const firstCity = Object.keys(raw?.countries?.[c]?.cities || {})[0] || "";
-            setCity(firstCity);
-            const newPeriods = Object.keys(raw?.countries?.[c]?.cities?.[firstCity]?.periods || {});
-            setPeriod(newPeriods[0] || "");
-            const newSubmarkets =
-              newPeriods.length > 0
-                ? Object.keys(raw?.countries?.[c]?.cities?.[firstCity]?.periods?.[newPeriods[0]]?.subMarkets || {})
-                : [];
-            setSubmarket(newSubmarkets[0] || "");
+            setSelectedCountry(c);
+            const firstCity = Object.keys(data.countries[c].cities)[0];
+            setSelectedCity(firstCity);
+            const firstPeriod = Object.keys(data.countries[c].cities[firstCity].periods)[0];
+            setSelectedPeriod(firstPeriod);
+            const firstSub = Object.keys(
+              data.countries[c].cities[firstCity].periods[firstPeriod].subMarkets
+            )[0];
+            setSelectedSubmarket(firstSub);
           }}
+          className="w-full p-2 border border-gray-300 rounded-md"
         >
-          {countries.map((c) => (
+          {Object.keys(data.countries).map((c) => (
             <option key={c}>{c}</option>
           ))}
         </select>
 
         <select
-          value={city}
+          value={selectedCity}
           onChange={(e) => {
-            const cityVal = e.target.value;
-            setCity(cityVal);
-            const newPeriods = Object.keys(raw?.countries?.[country]?.cities?.[cityVal]?.periods || {});
-            setPeriod(newPeriods[0] || "");
-            const newSubmarkets =
-              newPeriods.length > 0
-                ? Object.keys(raw?.countries?.[country]?.cities?.[cityVal]?.periods?.[newPeriods[0]]?.subMarkets || {})
-                : [];
-            setSubmarket(newSubmarkets[0] || "");
+            const city = e.target.value;
+            setSelectedCity(city);
+            const firstPeriod = Object.keys(
+              data.countries[selectedCountry].cities[city].periods
+            )[0];
+            setSelectedPeriod(firstPeriod);
+            const firstSub = Object.keys(
+              data.countries[selectedCountry].cities[city].periods[firstPeriod].subMarkets
+            )[0];
+            setSelectedSubmarket(firstSub);
           }}
+          className="w-full p-2 border border-gray-300 rounded-md"
         >
-          {cities.map((ct) => (
-            <option key={ct}>{ct}</option>
+          {Object.keys(country.cities).map((city) => (
+            <option key={city}>{city}</option>
           ))}
         </select>
 
-        <select value={submarket} onChange={(e) => setSubmarket(e.target.value)}>
-          {submarketOptions.map((sm) => (
-            <option key={sm}>{sm}</option>
+        <select
+          value={selectedSubmarket}
+          onChange={(e) => setSelectedSubmarket(e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded-md"
+        >
+          {Object.keys(period.subMarkets).map((s) => (
+            <option key={s}>{s}</option>
           ))}
         </select>
 
-        <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-          {periods.map((p) => (
+        <select
+          value={selectedPeriod}
+          onChange={(e) => setSelectedPeriod(e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded-md"
+        >
+          {Object.keys(city.periods).map((p) => (
             <option key={p}>{p}</option>
           ))}
         </select>
       </div>
 
-      <h2>
-        {city} Office Market — {period} — {submarket}
+      {/* --- TITEL --- */}
+      <h2 className="text-xl font-bold text-center mb-2">
+        {selectedCity} Office Market — {selectedPeriod} — {selectedSubmarket}
       </h2>
 
-      {!metricSource && <div>No data available for this selection.</div>}
+      {/* --- MARKET METRICS --- */}
+      <div className="bg-blue-900 text-white font-semibold px-3 py-1 rounded-t-md">
+        📊 Market Metrics
+      </div>
+      <div className="border border-t-0 border-blue-900 rounded-b-md overflow-hidden divide-y divide-gray-200">
+        {renderMetric("Total Stock (sqm)", subMarket.totalStock)}
+        {renderMetric("Vacancy (sqm)", subMarket.vacancy)}
+        {renderMetric("Vacancy Rate (%)", (subMarket.vacancyRate * 100).toFixed(2) + "%")}
+        {renderMetric("Take-up (sqm)", subMarket.takeUp)}
+        {renderMetric("Net Absorption (sqm)", subMarket.netAbsorption)}
+        {renderMetric("Completions YTD (sqm)", subMarket.completionsYTD)}
+        {renderMetric("Under Construction (sqm)", subMarket.underConstruction)}
+        {renderMetric("Prime Rent (€/sqm/month)", subMarket.primeRentEurSqmMonth)}
+        {renderMetric("Average Rent (€/sqm/month)", subMarket.averageRentEurSqmMonth)}
+        {renderMetric("Prime Yield (%)", (subMarket.primeYield * 100).toFixed(2) + "%")}
+      </div>
 
-      {metricSource && (
-        <>
-          <div className="section-box">
-            <div className="section-header">
-              <span>📊</span> Market Metrics
-            </div>
-            <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
-            <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
-            <Row label="Vacancy Rate (%)" value={fmtPercent(g("vacancyRate"))} />
-            <Row label="YTD Take-Up (sqm)" value={fmtNumber(g("takeUp"))} />
-            <Row label="Net Absorption (sqm)" value={fmtNumber(g("netAbsorption"))} />
-            <Row label="YTD Completions (sqm)" value={fmtNumber(g("completionsYTD"))} />
-            <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
-            <Row label="Prime Rent (€/sqm/month)" value={fmtMoney(g("primeRentEurSqmMonth"))} />
-            <Row label="Average Rent (€/sqm/month)" value={fmtMoney(g("averageRentEurSqmMonth"))} />
-            <Row label="Prime Yield (%)" value={fmtPercent(g("primeYield"))} />
-          </div>
+      {/* --- LEASING CONDITIONS --- */}
+      <div className="bg-blue-900 text-white font-semibold px-3 py-1 mt-6 rounded-t-md">
+        📝 Leasing Conditions
+      </div>
+      <div className="border border-t-0 border-blue-900 rounded-b-md overflow-hidden divide-y divide-gray-200">
+        {renderMetric("Rent-free period (month/year)", period.leasing.rentFreeMonthPerYear)}
+        {renderMetric("Lease length (months)", period.leasing.leaseLengthMonths)}
+        {renderMetric("Fit-out (€/sqm)", period.leasing.fitOutEurSqmShellCore)}
+        {renderMetric("Service charge (€/sqm/month)", period.leasing.serviceChargeEurSqmMonth)}
+      </div>
+    </div>
+  );
+}
 
-          <div className="section-box">
-            <div className="section-header">
-              <span>📝</span> Leasing Conditions
-            </div>
-            <Row label="Rent-free period (month/year)" value={leasingSource?.rentFreeMonthPerYear ?? "–"} />
-            <Row label="Lease length (months)" value={leasingSource?.leaseLengthMonths ?? "–"} />
-            <Row label="Fit-out (€/sqm)" value={leasingSource?.fitOutEurSqmShellCore ?? "–"} />
-            <Row label="Service charge (€/sqm/month)" value={leasingSource?.serviceChargeEurSqmMonth ?? "–"} />
-          </div>
-        </>
-      )}
+/* Helper-Komponente für jede Zeile */
+function renderMetric(label, value) {
+  const displayValue =
+    value === null || value === undefined || value === "" ? "n/a" : value;
+
+  return (
+    <div className="flex justify-between items-start px-3 py-1.5 bg-white even:bg-gray-50">
+      <span className="text-sm leading-tight whitespace-normal break-words max-w-[70%]">
+        {label}
+      </span>
+      <span className="text-sm text-right font-medium ml-2 whitespace-nowrap">
+        {displayValue}
+      </span>
     </div>
   );
 }
