@@ -212,7 +212,9 @@ export default function DataExplorer() {
             <Row label="Rent-free period (month/year)" value={leasingSource?.rentFreeMonthPerYear ?? "–"} />
             <Row label="Lease length (months)" value={leasingSource?.leaseLengthMonths ?? "–"} />
             <Row label="Fit-out (€/sqm)" value={leasingSource?.fitOutEurSqmShellCore ?? "–"} />
-            <Row label="Service charge (€/sqm/month)" value={leasingSource?.serviceChargeEurSqmMonth ?? "–"} />
+            <Row label="Service charge (€/sqm/month)"
+                  value={fmtMoney(leasingSource?.serviceChargeEurSqmMonth ?? null)}
+                  />
           </div>
         </>
       )}
