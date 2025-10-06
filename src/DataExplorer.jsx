@@ -3,13 +3,16 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
   LabelList,
+  ComposedChart,
 } from "recharts";
 import "./App.css";
 
+/* === Formatting helpers === */
 function fmtNumber(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return "–";
   if (Math.abs(n) >= 1000)
@@ -40,6 +43,7 @@ function Row({ label, value }) {
   );
 }
 
+/* === Main Component === */
 export default function DataExplorer() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +55,6 @@ export default function DataExplorer() {
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
-  // Load JSON once
   useEffect(() => {
     setLoading(true);
     fetch("/market_data.json")
@@ -292,13 +295,7 @@ export default function DataExplorer() {
               </select>
 
               <BarTrendChart
-                data={buildTrendDataExtended(
-                  raw,
-                  country,
-                  city,
-                  submarket,
-                  selectedMetric
-                )}
+                data={buildTrendDataFixed(raw, country, city, submarket, selectedMetric)}
                 metric={selectedMetric}
               />
             </div>
@@ -309,8 +306,8 @@ export default function DataExplorer() {
   );
 }
 
-/* === Helper for historical data === */
-function buildTrendDataExtended(raw, country, city, submarket, metric) {
+/* === Trend Builder (robust for submarkets) === */
+function buildTrendDataFixed(raw, country, city, submarket, metric) {
   if (!raw?.countries?.[country]?.cities?.[city]) return [];
   const periods = Object.keys(raw.countries[country].cities[city].periods || {});
 
@@ -326,12 +323,22 @@ function buildTrendDataExtended(raw, country, city, submarket, metric) {
 
   for (const p of periods.sort(sortPeriods)) {
     const cityData = raw.countries[country].cities[city].periods[p];
-    const marketData =
-      cityData.subMarkets?.[submarket] || cityData.market || {};
-    const leasingData =
-      cityData.subMarkets?.[submarket]?.leasing || cityData.leasing || {};
+    if (!cityData) continue;
 
-    const combined = { ...marketData, ...leasingData };
+    const subMarketData = cityData.subMarkets?.[submarket] || {};
+    const marketData = cityData.market || {};
+    const leasingData = cityData.leasing || {};
+    const leasingSub = cityData.subMarkets?.[submarket]?.leasing || {};
+
+    // Merge everything but prioritise submarket level
+    const combined = {
+      ...marketData,
+      ...leasingData,
+      ...marketData,
+      ...subMarketData,
+      ...leasingData,
+      ...leasingSub,
+    };
 
     if (combined[metric] !== undefined && combined[metric] !== null) {
       data.push({ period: p, value: parseFloat(combined[metric]) });
@@ -341,7 +348,7 @@ function buildTrendDataExtended(raw, country, city, submarket, metric) {
   return data;
 }
 
-/* === Chart component === */
+/* === Chart component (Bars + grey dashed line) === */
 function BarTrendChart({ data, metric }) {
   if (!data || data.length === 0)
     return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
@@ -355,10 +362,21 @@ function BarTrendChart({ data, metric }) {
 
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+      <ComposedChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
         <XAxis dataKey="period" />
         <YAxis />
         <Tooltip formatter={(v) => formatValue(v)} />
+
+        {/* grey dashed trend line */}
+        <Line
+          type="monotone"
+          dataKey="value"
+          stroke="#999"
+          strokeDasharray="4 4"
+          dot={{ r: 3, fill: "#666" }}
+        />
+
+        {/* bars */}
         <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
           <LabelList
             dataKey="value"
@@ -367,7 +385,7 @@ function BarTrendChart({ data, metric }) {
             style={{ fill: "#003366", fontSize: "12px" }}
           />
         </Bar>
-      </BarChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
