@@ -1,27 +1,26 @@
 import React, { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
-  BarChart,
+  ComposedChart,
   Bar,
   Line,
   XAxis,
   YAxis,
   Tooltip,
   LabelList,
-  ComposedChart,
 } from "recharts";
 import "./App.css";
 
-/* === Formatting helpers === */
+/* ========== Formatting helpers ========== */
 function fmtNumber(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
+  if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   if (Math.abs(n) >= 1000)
     return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 function fmtMoney(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
+  if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   return n.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -29,8 +28,8 @@ function fmtMoney(n) {
 }
 
 function fmtPercent(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
-  if (Math.abs(n) <= 1) return (n * 100).toFixed(2) + "%";
+  if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
+  // n is already normalised to 0..100 for charting, so just show with 2 dp and '%'
   return Number(n).toFixed(2) + "%";
 }
 
@@ -43,7 +42,28 @@ function Row({ label, value }) {
   );
 }
 
-/* === Main Component === */
+/* Parse anything like "7,5", "7.5", "7.5%", "1 234,56", "€17,25" -> number */
+function coerceNumber(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return v;
+  let s = String(v).trim();
+  if (s === "" || s === "–") return null;
+  // remove currency, percent and spaces
+  s = s.replace(/[€%\s]/g, "");
+  // remove thousands separators (either . or , depending on locale)
+  // heuristic: if both , and . appear, assume . is thousands and , is decimal
+  if (s.indexOf(",") >= 0 && s.indexOf(".") >= 0) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else {
+    // if only comma appears, treat it as decimal
+    if (s.indexOf(",") >= 0) s = s.replace(",", ".");
+    // if only dot appears, it's decimal already
+  }
+  const num = parseFloat(s);
+  return Number.isNaN(num) ? null : num;
+}
+
+/* ========== Main Component ========== */
 export default function DataExplorer() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -129,7 +149,7 @@ export default function DataExplorer() {
     if (periods.length && !periods.includes(period)) setPeriod(periods[0]);
     if (submarketsFromJson.length && !submarketsFromJson.includes(submarket))
       setSubmarket(submarketsFromJson[0]);
-  }, [city, country, raw, periods, submarketsFromJson]);
+  }, [city, country, raw, periods, submarketsFromJson, period, submarket]);
 
   if (loading) return <div style={{ padding: 30 }}>Loading market data…</div>;
   if (errorLoading)
@@ -143,7 +163,7 @@ export default function DataExplorer() {
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
       <h1>{city} Office Market</h1>
 
-      {/* --- Dropdowns --- */}
+      {/* Controls */}
       <div>
         <select
           value={country}
@@ -219,41 +239,56 @@ export default function DataExplorer() {
 
       {metricSource && (
         <>
-          {/* --- Market Metrics --- */}
+          {/* Market Metrics */}
           <div className="section-box">
             <div className="section-header">
               <span>📊</span> Market Metrics
             </div>
             <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
             <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
-            <Row label="Vacancy Rate (%)" value={fmtPercent(g("vacancyRate"))} />
+            <Row label="Vacancy Rate (%)" value={
+              // display: treat decimals as %, leave 0..100 alone
+              (() => {
+                const v = coerceNumber(g("vacancyRate"));
+                if (v === null) return "–";
+                const show = Math.abs(v) <= 1 ? v * 100 : v;
+                return fmtPercent(show);
+              })()
+            } />
             <Row
               label="Prime Rent (€/sqm/month)"
-              value={fmtMoney(g("primeRentEurSqmMonth"))}
+              value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))}
             />
             <Row
               label="Average Rent (€/sqm/month)"
-              value={fmtMoney(g("averageRentEurSqmMonth"))}
+              value={fmtMoney(coerceNumber(g("averageRentEurSqmMonth")))}
             />
-            <Row label="Prime Yield (%)" value={fmtPercent(g("primeYield"))} />
+            <Row label="Prime Yield (%)" value={
+              (() => {
+                const v = coerceNumber(g("primeYield"));
+                if (v === null) return "–";
+                const show = Math.abs(v) <= 1 ? v * 100 : v;
+                return fmtPercent(show);
+              })()
+            } />
           </div>
 
-          {/* --- Leasing Conditions --- */}
+          {/* Leasing */}
           <div className="section-box">
             <div className="section-header">
               <span>📝</span> Leasing Conditions
             </div>
             <Row
               label="Fit-out (€/sqm)"
-              value={fmtNumber(leasingSource?.fitOutEurSqmShellCore ?? null)}
+              value={fmtNumber(coerceNumber(leasingSource?.fitOutEurSqmShellCore ?? null))}
             />
             <Row
               label="Service charge (€/sqm/month)"
-              value={fmtMoney(leasingSource?.serviceChargeEurSqmMonth ?? null)}
+              value={fmtMoney(coerceNumber(leasingSource?.serviceChargeEurSqmMonth ?? null))}
             />
           </div>
 
-          {/* --- Historical Trend Section --- */}
+          {/* Historical Trend */}
           <div className="section-box">
             <div className="section-header">
               <span>📈</span> Historical Trend
@@ -273,29 +308,18 @@ export default function DataExplorer() {
                   { key: "totalStock", label: "Total Stock (sqm)" },
                   { key: "vacancy", label: "Vacancy (sqm)" },
                   { key: "vacancyRate", label: "Vacancy Rate (%)" },
-                  {
-                    key: "primeRentEurSqmMonth",
-                    label: "Prime Rent (€/sqm/month)",
-                  },
-                  {
-                    key: "averageRentEurSqmMonth",
-                    label: "Average Rent (€/sqm/month)",
-                  },
+                  { key: "primeRentEurSqmMonth", label: "Prime Rent (€/sqm/month)" },
+                  { key: "averageRentEurSqmMonth", label: "Average Rent (€/sqm/month)" },
                   { key: "primeYield", label: "Prime Yield (%)" },
                   { key: "fitOutEurSqmShellCore", label: "Fit-out (€/sqm)" },
-                  {
-                    key: "serviceChargeEurSqmMonth",
-                    label: "Service charge (€/sqm/month)",
-                  },
+                  { key: "serviceChargeEurSqmMonth", label: "Service charge (€/sqm/month)" },
                 ].map((m) => (
-                  <option key={m.key} value={m.key}>
-                    {m.label}
-                  </option>
+                  <option key={m.key} value={m.key}>{m.label}</option>
                 ))}
               </select>
 
               <BarTrendChart
-                data={buildTrendDataFixed(raw, country, city, submarket, selectedMetric)}
+                data={buildTrendSeries(raw, country, city, submarket, selectedMetric)}
                 metric={selectedMetric}
               />
             </div>
@@ -306,8 +330,8 @@ export default function DataExplorer() {
   );
 }
 
-/* === Trend Builder (robust for submarkets) === */
-function buildTrendDataFixed(raw, country, city, submarket, metric) {
+/* ===== Build historical series with normalised units ===== */
+function buildTrendSeries(raw, country, city, submarket, metric) {
   if (!raw?.countries?.[country]?.cities?.[city]) return [];
   const periods = Object.keys(raw.countries[country].cities[city].periods || {});
 
@@ -319,44 +343,43 @@ function buildTrendDataFixed(raw, country, city, submarket, metric) {
     return qNum(qa) - qNum(qb);
   };
 
-  const data = [];
+  const out = [];
 
   for (const p of periods.sort(sortPeriods)) {
     const cityData = raw.countries[country].cities[city].periods[p];
     if (!cityData) continue;
 
+    // prefer submarket level, then city level
     const subMarketData = cityData.subMarkets?.[submarket] || {};
-    const marketData = cityData.market || {};
-    const leasingData = cityData.leasing || {};
-    const leasingSub = cityData.subMarkets?.[submarket]?.leasing || {};
+    const marketData    = cityData.market || {};
+    const leasingSub    = cityData.subMarkets?.[submarket]?.leasing || {};
+    const leasingCity   = cityData.leasing || {};
 
-    // Merge everything but prioritise submarket level
-    const combined = {
-      ...marketData,
-      ...leasingData,
-      ...marketData,
-      ...subMarketData,
-      ...leasingData,
-      ...leasingSub,
-    };
+    const merged = { ...marketData, ...leasingCity, ...subMarketData, ...leasingSub };
 
-    if (combined[metric] !== undefined && combined[metric] !== null) {
-      data.push({ period: p, value: parseFloat(combined[metric]) });
+    let val = coerceNumber(merged[metric]);
+    if (val === null) continue;
+
+    // NORMALISE: for percentage metrics use 0..100 scale always
+    if (metric === "vacancyRate" || metric === "primeYield") {
+      val = Math.abs(val) <= 1 ? val * 100 : val;
     }
+
+    out.push({ period: p, value: val });
   }
 
-  return data;
+  return out;
 }
 
-/* === Chart component (Bars + grey dashed line) === */
+/* ===== Chart component (bars + grey dashed line) ===== */
 function BarTrendChart({ data, metric }) {
   if (!data || data.length === 0)
     return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
 
   const formatValue = (v) => {
-    if (metric.includes("Rate") || metric.includes("Yield")) return fmtPercent(v);
-    if (metric.includes("Rent") || metric.includes("Charge")) return fmtMoney(v);
-    if (metric.includes("fitOut")) return fmtNumber(v);
+    if (metric === "vacancyRate" || metric === "primeYield") return fmtPercent(v);
+    if (metric === "primeRentEurSqmMonth" || metric === "averageRentEurSqmMonth" || metric === "serviceChargeEurSqmMonth")
+      return fmtMoney(v);
     return fmtNumber(v);
   };
 
@@ -364,10 +387,15 @@ function BarTrendChart({ data, metric }) {
     <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
         <XAxis dataKey="period" />
-        <YAxis />
+        <YAxis
+          tickFormatter={(t) => {
+            if (metric === "vacancyRate" || metric === "primeYield") return `${t}`;
+            return t;
+          }}
+        />
         <Tooltip formatter={(v) => formatValue(v)} />
 
-        {/* grey dashed trend line */}
+        {/* Trend line */}
         <Line
           type="monotone"
           dataKey="value"
@@ -376,7 +404,7 @@ function BarTrendChart({ data, metric }) {
           dot={{ r: 3, fill: "#666" }}
         />
 
-        {/* bars */}
+        {/* Bars */}
         <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
           <LabelList
             dataKey="value"
