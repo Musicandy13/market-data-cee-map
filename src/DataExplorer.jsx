@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import {
-  LineChart,
-  Line,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer,
+  LabelList,
 } from "recharts";
 import "./App.css";
 
@@ -50,7 +51,7 @@ export default function DataExplorer() {
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
-  // --- Load JSON ---
+  // Load JSON once
   useEffect(() => {
     setLoading(true);
     fetch("/market_data.json")
@@ -61,6 +62,7 @@ export default function DataExplorer() {
       .then((json) => {
         setRaw(json);
         setLoading(false);
+
         const countries = Object.keys(json?.countries || {});
         if (countries.length) {
           const firstCountry = countries[0];
@@ -138,7 +140,7 @@ export default function DataExplorer() {
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
       <h1>{city} Office Market</h1>
 
-      {/* --- DROPDOWNS --- */}
+      {/* --- Dropdowns --- */}
       <div>
         <select
           value={country}
@@ -214,7 +216,7 @@ export default function DataExplorer() {
 
       {metricSource && (
         <>
-          {/* --- MARKET METRICS --- */}
+          {/* --- Market Metrics --- */}
           <div className="section-box">
             <div className="section-header">
               <span>📊</span> Market Metrics
@@ -222,19 +224,6 @@ export default function DataExplorer() {
             <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
             <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
             <Row label="Vacancy Rate (%)" value={fmtPercent(g("vacancyRate"))} />
-            <Row label="YTD Take-Up (sqm)" value={fmtNumber(g("takeUp"))} />
-            <Row
-              label="Net Absorption (sqm)"
-              value={fmtNumber(g("netAbsorption"))}
-            />
-            <Row
-              label="YTD Completions (sqm)"
-              value={fmtNumber(g("completionsYTD"))}
-            />
-            <Row
-              label="Under Construction (sqm)"
-              value={fmtNumber(g("underConstruction"))}
-            />
             <Row
               label="Prime Rent (€/sqm/month)"
               value={fmtMoney(g("primeRentEurSqmMonth"))}
@@ -246,22 +235,14 @@ export default function DataExplorer() {
             <Row label="Prime Yield (%)" value={fmtPercent(g("primeYield"))} />
           </div>
 
-          {/* --- LEASING CONDITIONS --- */}
+          {/* --- Leasing Conditions --- */}
           <div className="section-box">
             <div className="section-header">
               <span>📝</span> Leasing Conditions
             </div>
             <Row
-              label="Rent-free period (month/year)"
-              value={leasingSource?.rentFreeMonthPerYear ?? "–"}
-            />
-            <Row
-              label="Lease length (months)"
-              value={leasingSource?.leaseLengthMonths ?? "–"}
-            />
-            <Row
               label="Fit-out (€/sqm)"
-              value={fmtMoney(leasingSource?.fitOutEurSqmShellCore ?? null)}
+              value={fmtNumber(leasingSource?.fitOutEurSqmShellCore ?? null)}
             />
             <Row
               label="Service charge (€/sqm/month)"
@@ -269,7 +250,7 @@ export default function DataExplorer() {
             />
           </div>
 
-          {/* --- NEW HISTORICAL TREND SECTION --- */}
+          {/* --- Historical Trend Section --- */}
           <div className="section-box">
             <div className="section-header">
               <span>📈</span> Historical Trend
@@ -286,27 +267,38 @@ export default function DataExplorer() {
                 }}
               >
                 {[
-                  "totalStock",
-                  "vacancy",
-                  "vacancyRate",
-                  "takeUp",
-                  "netAbsorption",
-                  "completionsYTD",
-                  "underConstruction",
-                  "primeRentEurSqmMonth",
-                  "averageRentEurSqmMonth",
-                  "primeYield",
-                  "rentFreeMonthPerYear",
-                  "leaseLengthMonths",
-                  "fitOutEurSqmShellCore",
-                  "serviceChargeEurSqmMonth",
+                  { key: "totalStock", label: "Total Stock (sqm)" },
+                  { key: "vacancy", label: "Vacancy (sqm)" },
+                  { key: "vacancyRate", label: "Vacancy Rate (%)" },
+                  {
+                    key: "primeRentEurSqmMonth",
+                    label: "Prime Rent (€/sqm/month)",
+                  },
+                  {
+                    key: "averageRentEurSqmMonth",
+                    label: "Average Rent (€/sqm/month)",
+                  },
+                  { key: "primeYield", label: "Prime Yield (%)" },
+                  { key: "fitOutEurSqmShellCore", label: "Fit-out (€/sqm)" },
+                  {
+                    key: "serviceChargeEurSqmMonth",
+                    label: "Service charge (€/sqm/month)",
+                  },
                 ].map((m) => (
-                  <option key={m}>{m}</option>
+                  <option key={m.key} value={m.key}>
+                    {m.label}
+                  </option>
                 ))}
               </select>
 
-              <TrendChart
-                data={buildTrendData(raw, country, city, submarket, selectedMetric)}
+              <BarTrendChart
+                data={buildTrendDataExtended(
+                  raw,
+                  country,
+                  city,
+                  submarket,
+                  selectedMetric
+                )}
                 metric={selectedMetric}
               />
             </div>
@@ -317,43 +309,65 @@ export default function DataExplorer() {
   );
 }
 
-// --- Trend-Chart Helper ---
-function buildTrendData(raw, country, city, submarket, metric) {
+/* === Helper for historical data === */
+function buildTrendDataExtended(raw, country, city, submarket, metric) {
   if (!raw?.countries?.[country]?.cities?.[city]) return [];
   const periods = Object.keys(raw.countries[country].cities[city].periods || {});
+
+  const sortPeriods = (a, b) => {
+    const [qa, ya] = a.split(" ");
+    const [qb, yb] = b.split(" ");
+    const qNum = (q) => Number(q.replace("Q", ""));
+    if (ya !== yb) return Number(ya) - Number(yb);
+    return qNum(qa) - qNum(qb);
+  };
+
   const data = [];
 
-  for (const p of periods) {
-    const sm =
-      raw.countries[country].cities[city].periods[p].subMarkets?.[submarket] ||
-      raw.countries[country].cities[city].periods[p].market;
+  for (const p of periods.sort(sortPeriods)) {
+    const cityData = raw.countries[country].cities[city].periods[p];
+    const marketData =
+      cityData.subMarkets?.[submarket] || cityData.market || {};
+    const leasingData =
+      cityData.subMarkets?.[submarket]?.leasing || cityData.leasing || {};
 
-    if (sm && sm[metric] !== undefined && sm[metric] !== null) {
-      data.push({ period: p, value: parseFloat(sm[metric]) });
+    const combined = { ...marketData, ...leasingData };
+
+    if (combined[metric] !== undefined && combined[metric] !== null) {
+      data.push({ period: p, value: parseFloat(combined[metric]) });
     }
   }
-  data.sort((a, b) => (a.period > b.period ? 1 : -1));
+
   return data;
 }
 
-function TrendChart({ data, metric }) {
+/* === Chart component === */
+function BarTrendChart({ data, metric }) {
   if (!data || data.length === 0)
     return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
 
+  const formatValue = (v) => {
+    if (metric.includes("Rate") || metric.includes("Yield")) return fmtPercent(v);
+    if (metric.includes("Rent") || metric.includes("Charge")) return fmtMoney(v);
+    if (metric.includes("fitOut")) return fmtNumber(v);
+    return fmtNumber(v);
+  };
+
   return (
-    <ResponsiveContainer width="100%" height={240}>
-      <LineChart data={data}>
+    <ResponsiveContainer width="100%" height={260}>
+      <BarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
         <XAxis dataKey="period" />
         <YAxis />
-        <Tooltip formatter={(v) => v.toFixed(2)} />
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke="#003366"
-          strokeWidth={2}
-          dot={{ r: 3 }}
-        />
-      </LineChart>
+        <Tooltip formatter={(v) => formatValue(v)} />
+        <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
+          <LabelList
+            dataKey="value"
+            position="top"
+            formatter={(v) => formatValue(v)}
+            style={{ fill: "#003366", fontSize: "12px" }}
+          />
+        </Bar>
+      </BarChart>
     </ResponsiveContainer>
   );
 }
