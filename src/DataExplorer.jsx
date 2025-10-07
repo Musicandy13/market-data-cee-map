@@ -382,6 +382,8 @@ function BarTrendChart({ data, metric }) {
 
 /* === Dual comparison chart === */
 function DualBarChart({ data1, data2, metric, label1, label2 }) {
+  const [showCommonOnly, setShowCommonOnly] = React.useState(false);
+
   const fmt = (v) =>
     metric === "vacancyRate" || metric === "primeYield"
       ? fmtPercent(v)
@@ -389,8 +391,9 @@ function DualBarChart({ data1, data2, metric, label1, label2 }) {
       ? fmtMoney(v)
       : fmtNumber(v);
 
-  const mergedPeriods = Array.from(
-    new Set([...data1.map((d) => d.period), ...data2.map((d) => d.period)])
+  // --- Collect all periods from both markets ---
+  const allPeriods = Array.from(
+    new Set([...data1.map((d) => d.period.trim()), ...data2.map((d) => d.period.trim())])
   ).sort((a, b) => {
     const [qa, ya] = a.split(" ");
     const [qb, yb] = b.split(" ");
@@ -398,42 +401,78 @@ function DualBarChart({ data1, data2, metric, label1, label2 }) {
     return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
   });
 
-  const combined = mergedPeriods.map((p) => ({
+  // --- Build joined array ---
+  const combined = allPeriods.map((p) => ({
     period: p,
-    value1: data1.find((d) => d.period === p)?.value || null,
-    value2: data2.find((d) => d.period === p)?.value || null,
+    value1: data1.find((d) => d.period.trim() === p)?.value ?? null,
+    value2: data2.find((d) => d.period.trim() === p)?.value ?? null,
   }));
 
-  if (!combined.length)
+  // --- Filter if user wants only common quarters ---
+  const filtered = showCommonOnly
+    ? combined.filter((x) => x.value1 !== null && x.value2 !== null)
+    : combined;
+
+  if (!filtered.length)
     return <div style={{ marginTop: 10 }}>No data for comparison.</div>;
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <ComposedChart data={combined} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
-        <XAxis dataKey="period" />
-        <YAxis />
-        <Tooltip
-          formatter={(v, name) =>
-            [`${fmt(v)}`, name === "value1" ? label1 : label2]
-          }
+    <div>
+      <label style={{ display: "block", marginBottom: 8, fontSize: 14 }}>
+        <input
+          type="checkbox"
+          checked={showCommonOnly}
+          onChange={(e) => setShowCommonOnly(e.target.checked)}
+          style={{ marginRight: 6 }}
         />
-        <Line
-          type="monotone"
-          dataKey="value1"
-          stroke="#004488"
-          strokeDasharray="4 4"
-          dot={false}
-        />
-        <Line
-          type="monotone"
-          dataKey="value2"
-          stroke="#e67e22"
-          strokeDasharray="4 4"
-          dot={false}
-        />
-        <Bar dataKey="value1" fill="#003366" radius={[4, 4, 0, 0]} barSize={20} />
-        <Bar dataKey="value2" fill="#e67e22" radius={[4, 4, 0, 0]} barSize={20} />
-      </ComposedChart>
-    </ResponsiveContainer>
+        Show only common periods
+      </label>
+
+      <ResponsiveContainer width="100%" height={280}>
+        <ComposedChart
+          data={filtered}
+          margin={{ top: 20, right: 20, left: 0, bottom: 20 }}
+        >
+          <XAxis dataKey="period" />
+          <YAxis />
+          <Tooltip
+            formatter={(v, name) => [
+              `${fmt(v)}`,
+              name === "value1" ? label1 : label2,
+            ]}
+          />
+          {/* trend lines */}
+          <Line
+            type="monotone"
+            dataKey="value1"
+            stroke="#004488"
+            strokeDasharray="4 4"
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="value2"
+            stroke="#e67e22"
+            strokeDasharray="4 4"
+            dot={false}
+          />
+          {/* bars */}
+          <Bar
+            dataKey="value1"
+            fill="#003366"
+            radius={[4, 4, 0, 0]}
+            barSize={20}
+            name={label1}
+          />
+          <Bar
+            dataKey="value2"
+            fill="#e67e22"
+            radius={[4, 4, 0, 0]}
+            barSize={20}
+            name={label2}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
