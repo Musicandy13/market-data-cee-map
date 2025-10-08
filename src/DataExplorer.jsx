@@ -209,10 +209,16 @@ export default function DataExplorer() {
             <div className="section-header">
               <span>📝</span> Leasing Conditions
             </div>
-            <Row label="Rent-free period (month/year)" value={leasingSource?.rentFreeMonthPerYear ?? "–"} />
-            <Row label="Lease length (months)" value={leasingSource?.leaseLengthMonths ?? "–"} />
-            <Row label="Fit-out (€/sqm)" value={leasingSource?.fitOutEurSqmShellCore ?? "–"} />
-            <Row label="Service charge (€/sqm/month)" value={leasingSource?.serviceChargeEurSqmMonth ?? "–"} />
+            <Row
+              label="Rent-free period (month/year)"
+              value={fmtMoney(leasingSource?.rentFreeMonthPerYear ?? null)}
+            />
+            <Row label="Lease length (months)" value={fmtNumber(leasingSource?.leaseLengthMonths ?? null)} />
+            <Row label="Fit-out (€/sqm)" value={fmtNumber(leasingSource?.fitOutEurSqmShellCore ?? null)} />
+            <Row
+              label="Service charge (€/sqm/month)"
+              value={fmtMoney(leasingSource?.serviceChargeEurSqmMonth ?? null)}
+            />
           </div>
         </>
       )}
