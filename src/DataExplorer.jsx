@@ -18,6 +18,7 @@ function fmtNumber(n) {
     return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+
 function fmtMoney(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   return n.toLocaleString(undefined, {
@@ -25,10 +26,12 @@ function fmtMoney(n) {
     maximumFractionDigits: 2,
   });
 }
+
 function fmtPercent(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
-  return Number(n).toFixed(2) + "%";
+  return `${Number(n).toFixed(2)}%`;
 }
+
 function coerceNumber(v) {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return v;
@@ -41,6 +44,7 @@ function coerceNumber(v) {
   const num = parseFloat(s);
   return Number.isNaN(num) ? null : num;
 }
+
 function Row({ label, value }) {
   return (
     <div className="row">
@@ -60,6 +64,7 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
     if (ya !== yb) return Number(ya) - Number(yb);
     return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
   };
+
   const out = [];
   for (const p of periods.sort(sortPeriods)) {
     const cityData = raw.countries[country].cities[city].periods[p];
@@ -69,16 +74,18 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
     const leasingSub = cityData.subMarkets?.[submarket]?.leasing || {};
     const leasingCity = cityData.leasing || {};
     const merged = { ...marketData, ...leasingCity, ...subMarketData, ...leasingSub };
+
     let val = coerceNumber(merged[metric]);
     if (val === null) continue;
     if (metric === "vacancyRate" || metric === "primeYield")
       val = Math.abs(val) <= 1 ? val * 100 : val;
+
     out.push({ period: p, value: val });
   }
   return out;
 }
 
-/* ===== Custom single tooltip ===== */
+/* ===== Custom Tooltip ===== */
 const SingleTooltip = ({ active, payload, label, metric }) => {
   if (active && payload && payload.length) {
     const val = payload[0].value;
@@ -276,22 +283,10 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
                 `${fmt(v)} (${name === "base" ? baseCity : city2})`
               }
             />
-            <Line
-              type="monotone"
-              dataKey="base"
-              stroke="#004488"
-              strokeDasharray="4 4"
-              dot={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="comp"
-              stroke="#e67e22"
-              strokeDasharray="4 4"
-              dot={false}
-            />
-            <Bar dataKey="base" fill="#003366" radius={[4, 4, 0, 0]} barSize={20} />
-            <Bar dataKey="comp" fill="#e67e22" radius={[4, 4, 0, 0]} barSize={20} />
+            <Line type="monotone" dataKey="base" stroke="#004488" dot={false} />
+            <Line type="monotone" dataKey="comp" stroke="#e67e22" dot={false} />
+            <Bar dataKey="base" fill="#003366" barSize={20} />
+            <Bar dataKey="comp" fill="#e67e22" barSize={20} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -299,7 +294,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   );
 }
 
-/* ===== Main App (with Comparison block) ===== */
+/* ===== Main App ===== */
 export default function DataExplorer() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -310,7 +305,6 @@ export default function DataExplorer() {
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
-  /* ---- load JSON ---- */
   useEffect(() => {
     setLoading(true);
     fetch("/market_data.json")
@@ -322,8 +316,7 @@ export default function DataExplorer() {
         setRaw(json);
         setLoading(false);
         const firstC = Object.keys(json.countries || {})[0];
-        const firstCity =
-          Object.keys(json.countries[firstC]?.cities || {})[0] || "";
+        const firstCity = Object.keys(json.countries[firstC]?.cities || {})[0] || "";
         const periods = Object.keys(
           json.countries[firstC]?.cities?.[firstCity]?.periods || {}
         );
@@ -352,21 +345,20 @@ export default function DataExplorer() {
     );
 
   const countries = Object.keys(raw?.countries || {});
-  const cities = country ? Object.keys(raw.countries[country].cities || {}) : [];
-  const periods = Object.keys(
-    raw.countries[country].cities[city]?.periods || {}
-  );
-  const periodObj = raw.countries[country].cities[city].periods[period];
+  const cities = country ? Object.keys(raw.countries[country]?.cities || {}) : [];
+  const periods = Object.keys(raw.countries[country]?.cities?.[city]?.periods || {});
+  const periodObj = raw.countries[country]?.cities?.[city]?.periods?.[period] || {};
   const subs = Object.keys(periodObj?.subMarkets || {});
   const g = (k) =>
-    periodObj?.subMarkets?.[submarket]?.[k] ??
-    periodObj?.market?.[k] ??
-    null;
-  const leasing = periodObj?.subMarkets?.[submarket]?.leasing ?? periodObj?.leasing ?? {};
+    periodObj?.subMarkets?.[submarket]?.[k] ?? periodObj?.market?.[k] ?? null;
+  const leasing =
+    periodObj?.subMarkets?.[submarket]?.leasing ?? periodObj?.leasing ?? {};
 
   return (
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
       <h1>{city} Office Market</h1>
+
+      {/* Selection */}
       <div>
         <select value={country} onChange={(e) => setCountry(e.target.value)}>
           {countries.map((c) => (
@@ -410,15 +402,9 @@ export default function DataExplorer() {
           )}
         />
         <Row label="Take-up (sqm)" value={fmtNumber(g("takeUp"))} />
-        <Row
-          label="Net Absorption (sqm, YTD)"
-          value={fmtNumber(g("netAbsorption"))}
-        />
+        <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
         <Row label="Completed (sqm, YTD)" value={fmtNumber(g("completionsYTD"))} />
-        <Row
-          label="Under Construction (sqm)"
-          value={fmtNumber(g("underConstruction"))}
-        />
+        <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
         <Row
           label="Prime Rent (€/sqm/month)"
           value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))}
@@ -446,14 +432,8 @@ export default function DataExplorer() {
           label="Typical rent-free period (month/year)"
           value={fmtNumber(leasing?.rentFreeMonthPerYear)}
         />
-        <Row
-          label="Typical lease length (months)"
-          value={fmtNumber(leasing?.leaseLengthMonths)}
-        />
-        <Row
-          label="Fit-out (€/sqm)"
-          value={fmtNumber(leasing?.fitOutEurSqmShellCore)}
-        />
+        <Row label="Typical lease length (months)" value={fmtNumber(leasing?.leaseLengthMonths)} />
+        <Row label="Fit-out (€/sqm)" value={fmtNumber(leasing?.fitOutEurSqmShellCore)} />
         <Row
           label="Service charge (€/sqm/month)"
           value={fmtMoney(leasing?.serviceChargeEurSqmMonth)}
