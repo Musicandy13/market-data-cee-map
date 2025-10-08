@@ -599,45 +599,47 @@ export default function DataExplorerApp() {
       </h2>
 
       {/* ---- Market Metrics (first block kept) ---- */}
-      <div className="section-box">
-        <div className="section-header">
-          <span>📊</span> Market Metrics
-        </div>
-        <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
-        <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
-        <Row
-          label="Vacancy Rate (%)"
-          value={fmtPercent(
-            (() => {
-              const vr = coerceNumber(g("vacancyRate"));
-              if (vr === null) return null;
-              return Math.abs(vr) <= 1 ? vr * 100 : vr;
-            })()
-          )}
-        />
-        <Row label="Take-up (sqm)" value={fmtNumber(g("takeUp"))} />
-        <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
-        <Row label="Completed (sqm, YTD)" value={fmtNumber(g("completionsYTD"))} />
-        <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
-        <Row
-          label="Prime Rent (€/sqm/month)"
-          value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))}
-        />
-        <Row
-          label="Average Rent (€/sqm/month)"
-          value={fmtMoney(coerceNumber(g("averageRentEurSqmMonth")))}
-        />
-        <Row
-          label="Prime Yield (%)"
-          value={fmtPercent(
-            (() => {
-              const py = coerceNumber(g("primeYield"));
-              if (py === null) return null;
-              return Math.abs(py) <= 1 ? py * 100 : py;
-            })()
-          )}
-        />
-      </div>
+<div className="section-box">
+  <div className="section-header">
+    <span>📊</span> Market Metrics
+  </div>
+
+  <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
+  <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
+  <Row
+    label="Vacancy Rate (%)"
+    value={fmtPercent(
+      (() => {
+        const vr = coerceNumber(g("vacancyRate"));
+        if (vr === null) return null;
+        return Math.abs(vr) <= 1 ? vr * 100 : vr;
+      })()
+    )}
+  />
+  <Row label="Take-up (sqm)" value={fmtNumber(g("takeUp"))} />
+  <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
+  <Row label="Completed (sqm, YTD)" value={fmtNumber(g("completionsYTD"))} />
+  <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
+  <Row
+    label="Prime Rent (€/sqm/month)"
+    value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))}
+  />
+  <Row
+    label="Average Rent (€/sqm/month)"
+    value={fmtMoney(coerceNumber(g("averageRentEurSqmMonth")))}
+  />
+  <Row
+    label="Prime Yield (%)"
+    value={fmtPercent(
+      (() => {
+        const py = coerceNumber(g("primeYield"));
+        if (py === null) return null;
+        return Math.abs(py) <= 1 ? py * 100 : py;
+      })()
+    )}
+  />
+</div>
+
 
       {/* ---- Leasing (first block kept) ---- */}
       <div className="section-box">
