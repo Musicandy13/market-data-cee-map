@@ -156,27 +156,28 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   const [submarket2, setSubmarket2] = useState("");
   const [metric, setMetric] = useState("primeRentEurSqmMonth");
 
+  // ✅ FIX: reinitialize dynamically
   useEffect(() => {
     if (!raw) return;
     const cList = Object.keys(raw.countries || {});
-    if (cList.length) {
-      const firstC = cList[0];
-      const firstCity = Object.keys(raw.countries[firstC]?.cities || {})[0] || "";
-      const firstPeriodKey = Object.keys(
-        raw.countries[firstC]?.cities?.[firstCity]?.periods || {}
-      )[0];
-      const subs =
-        firstPeriodKey
-          ? Object.keys(
-              raw.countries[firstC]?.cities?.[firstCity]?.periods?.[firstPeriodKey]
-                ?.subMarkets || {}
-            )
-          : [];
-      setCountry2(firstC);
-      setCity2(firstCity);
-      setSubmarket2(subs[0] || "");
-    }
-  }, [raw]);
+    if (!cList.length) return;
+
+    const defaultC = baseCountry && cList.includes(baseCountry) ? baseCountry : cList[0];
+    const defaultCity = Object.keys(raw.countries[defaultC]?.cities || {})[0] || "";
+    const firstPeriodKey = Object.keys(
+      raw.countries[defaultC]?.cities?.[defaultCity]?.periods || {}
+    )[0];
+    const subs = firstPeriodKey
+      ? Object.keys(
+          raw.countries[defaultC]?.cities?.[defaultCity]?.periods?.[firstPeriodKey]
+            ?.subMarkets || {}
+        )
+      : [];
+
+    setCountry2(defaultC);
+    setCity2(defaultCity);
+    setSubmarket2(subs[0] || "");
+  }, [raw, baseCountry]);
 
   if (!raw) return null;
 
@@ -277,11 +278,10 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
           <ComposedChart data={merged} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
             <XAxis dataKey="period" />
             <YAxis />
+            {/* ✅ FIX: show both series in tooltip */}
             <Tooltip
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
-                const val = payload[0].value;
-                const seriesName = payload[0].dataKey === "base" ? baseCity : city2;
                 return (
                   <div
                     style={{
@@ -292,9 +292,11 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
                     }}
                   >
                     <strong>{label}</strong>
-                    <div>
-                      {seriesName}: {fmt(val)}
-                    </div>
+                    {payload.map((p) => (
+                      <div key={p.dataKey}>
+                        {p.dataKey === "base" ? baseCity : city2}: {fmt(p.value)}
+                      </div>
+                    ))}
                   </div>
                 );
               }}
@@ -310,7 +312,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   );
 }
 
-/* ===== Main App (with Comparison block) ===== */
+/* ===== Main App ===== */
 export default function DataExplorerApp() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -348,6 +350,22 @@ export default function DataExplorerApp() {
         setLoading(false);
       });
   }, []);
+
+  // ✅ FIX: avoid white screen by resetting invalid combinations
+  useEffect(() => {
+    if (!raw || !country) return;
+    const cities = Object.keys(raw.countries[country]?.cities || {});
+    const newCity = cities.includes(city) ? city : cities[0];
+    const periods = Object.keys(raw.countries[country]?.cities?.[newCity]?.periods || {});
+    const newPeriod = periods.includes(period) ? period : periods[0];
+    const subs = Object.keys(
+      raw.countries[country]?.cities?.[newCity]?.periods?.[newPeriod]?.subMarkets || {}
+    );
+    const newSub = subs.includes(submarket) ? submarket : subs[0] || "";
+    setCity(newCity);
+    setPeriod(newPeriod);
+    setSubmarket(newSub);
+  }, [country]);
 
   if (loading) return <div style={{ padding: 30 }}>Loading…</div>;
   if (errorLoading)
@@ -413,7 +431,8 @@ export default function DataExplorerApp() {
           )}
         />
         <Row label="Take-up (sqm)" value={fmtNumber(g("takeUp"))} />
-        <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
+        <Row label="Net Absorption (sqm, YTD)" value={
+                  <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
         <Row label="Completed (sqm, YTD)" value={fmtNumber(g("completionsYTD"))} />
         <Row
           label="Under Construction (sqm)"
@@ -444,13 +463,16 @@ export default function DataExplorerApp() {
         </div>
         <Row
           label="Typical rent-free period (month/year)"
-          value={fmtMoney(leasing?.rentFreeMonthPerYear)}
+          value={fmtNumber(leasing?.rentFreeMonthPerYear)}
         />
         <Row
           label="Typical lease length (months)"
           value={fmtNumber(leasing?.leaseLengthMonths)}
         />
-        <Row label="Fit-out (€/sqm)" value={fmtNumber(leasing?.fitOutEurSqmShellCore)} />
+        <Row
+          label="Fit-out (€/sqm)"
+          value={fmtNumber(leasing?.fitOutEurSqmShellCore)}
+        />
         <Row
           label="Service charge (€/sqm/month)"
           value={fmtMoney(leasing?.serviceChargeEurSqmMonth)}
@@ -506,3 +528,4 @@ export default function DataExplorerApp() {
     </div>
   );
 }
+
