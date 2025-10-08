@@ -9,25 +9,26 @@ import {
   Tooltip,
   LabelList,
 } from "recharts";
-import "./App.css"; // Ensure your CSS file is in the correct location
+import "./App.css";
 
-/* ===== Helpers ===== */
+/* ===== Helpers (kept semantics consistent with your 1st block) ===== */
 function fmtNumber(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
-  if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
+  if (Math.abs(Number(n)) >= 1000)
+    return Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 function fmtMoney(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
+  return Number(n).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function fmtPercent(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "–";
-  // If the number is a decimal (e.g., 0.075), format as percentage
-  if (Math.abs(n) <= 1 && n !== 0) return (n * 100).toFixed(2) + "%";
-  // If the number is already a percentage (e.g., 7.5), treat it as such
+  if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   return Number(n).toFixed(2) + "%";
 }
 
@@ -37,8 +38,11 @@ function coerceNumber(v) {
   let s = String(v).trim();
   if (s === "" || s === "–") return null;
   s = s.replace(/[€%\s]/g, "");
-  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
-  else if (s.includes(",")) s = s.replace(",", ".");
+  if (s.indexOf(",") >= 0 && s.indexOf(".") >= 0) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (s.indexOf(",") >= 0) {
+    s = s.replace(",", ".");
+  }
   const num = parseFloat(s);
   return Number.isNaN(num) ? null : num;
 }
@@ -52,81 +56,77 @@ function Row({ label, value }) {
   );
 }
 
-const sortPeriods = (a, b) => {
-  const [qa, ya] = a.split(" ");
-  const [qb, yb] = b.split(" ");
-  if (ya !== yb) return Number(ya) - Number(yb);
-  return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
-};
-
-/* ===== Build historical series ===== */
+/* ===== Build historical series (safe reads) ===== */
 function buildTrendSeries(raw, country, city, submarket, metric) {
-  const periodsObj = raw?.countries?.[country]?.cities?.[city]?.periods;
-  if (!periodsObj) return [];
-  
-  const periods = Object.keys(periodsObj);
+  const cityNode = raw?.countries?.[country]?.cities?.[city];
+  if (!cityNode?.periods) return [];
+  const periods = Object.keys(cityNode.periods);
+
+  const sortPeriods = (a, b) => {
+    const [qa, ya] = a.split(" ");
+    const [qb, yb] = b.split(" ");
+    if (ya !== yb) return Number(ya) - Number(yb);
+    return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
+  };
+
   const out = [];
-  
   for (const p of periods.sort(sortPeriods)) {
-    const cityData = periodsObj[p];
+    const cityData = cityNode.periods?.[p];
     if (!cityData) continue;
-    
-    const subMarketData = cityData.subMarkets?.[submarket] || {};
-    const marketData = cityData.market || {};
-    const leasingSub = cityData.subMarkets?.[submarket]?.leasing || {};
-    const leasingCity = cityData.leasing || {};
-    
+
+    const subMarketData = cityData?.subMarkets?.[submarket] || {};
+    const marketData = cityData?.market || {};
+    const leasingSub = cityData?.subMarkets?.[submarket]?.leasing || {};
+    const leasingCity = cityData?.leasing || {};
+
     const merged = { ...marketData, ...leasingCity, ...subMarketData, ...leasingSub };
-    let val = coerceNumber(merged[metric]);
-    
+    let val = coerceNumber(merged?.[metric]);
     if (val === null) continue;
-    
-    // For chart display: Convert decimal percentages (e.g., 0.075) to whole numbers (e.g., 7.5) for better Y-axis scaling
+
+    // normalize % if stored as decimal
     if (metric === "vacancyRate" || metric === "primeYield") {
-      if (Math.abs(val) <= 1) val = val * 100;
+      val = Math.abs(val) <= 1 ? val * 100 : val;
     }
-    
     out.push({ period: p, value: val });
   }
   return out;
 }
 
-/* ===== Tooltip for Chart ===== */
+/* ===== Clean single-series tooltip for Trend chart ===== */
 const SingleTooltip = ({ active, payload, label, metric }) => {
-  if (active && payload && payload.length) {
-    const val = payload[0].value;
-    let text = fmtNumber(val);
-    
-    // Reformat the value back to its displayed percentage/money format
-    if (metric === "vacancyRate" || metric === "primeYield") {
-      // The chart value is the percentage number (e.g., 7.5), so divide by 100 for fmtPercent
-      text = fmtPercent(val / 100); 
-    }
-    if (
-      metric === "primeRentEurSqmMonth" ||
-      metric === "averageRentEurSqmMonth" ||
-      metric === "serviceChargeEurSqmMonth"
-    )
-      text = fmtMoney(val);
-      
-    return (
-      <div style={{ background: "white", border: "1px solid #ccc", padding: "4px 8px", fontSize: "12px" }}>
-        <strong>{label}</strong>
-        <div>{text}</div>
-      </div>
-    );
-  }
-  return null;
+  if (!active || !payload || !payload.length) return null;
+  const val = payload[0]?.value;
+  let text = fmtNumber(val);
+  if (metric === "vacancyRate" || metric === "primeYield") text = fmtPercent(val);
+  if (
+    metric === "primeRentEurSqmMonth" ||
+    metric === "averageRentEurSqmMonth" ||
+    metric === "serviceChargeEurSqmMonth"
+  )
+    text = fmtMoney(val);
+
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #ccc",
+        padding: "4px 8px",
+        fontSize: "12px",
+      }}
+    >
+      <strong>{label}</strong>
+      <div>{text}</div>
+    </div>
+  );
 };
 
-/* ===== Chart ===== */
+/* ===== Trend chart (bars + faint line) ===== */
 function BarTrendChart({ data, metric }) {
-  if (!data || data.length === 0) return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
+  if (!data || data.length === 0)
+    return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
 
-  // Formatter for YAxis and LabelList
   const formatValue = (v) => {
-    // If it's a percentage metric, the value 'v' is already the number (e.g., 7.5), so we format it as a percentage
-    if (metric === "vacancyRate" || metric === "primeYield") return fmtPercent(v / 100);
+    if (metric === "vacancyRate" || metric === "primeYield") return fmtPercent(v);
     if (
       metric === "primeRentEurSqmMonth" ||
       metric === "averageRentEurSqmMonth" ||
@@ -140,18 +140,21 @@ function BarTrendChart({ data, metric }) {
     <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
         <XAxis dataKey="period" />
-        {/* Y-axis formatter */}
-        <YAxis tickFormatter={(v) => formatValue(v)} /> 
-        {/* Tooltip uses its own formatting logic */}
+        <YAxis />
         <Tooltip content={<SingleTooltip metric={metric} />} />
-        <Line type="monotone" dataKey="value" stroke="#999" strokeDasharray="4 4" dot={{ r: 3, fill: "#666" }} />
+        <Line
+          type="monotone"
+          dataKey="value"
+          stroke="#999"
+          strokeDasharray="4 4"
+          dot={{ r: 3, fill: "#666" }}
+        />
         <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
-          {/* LabelList formatter */}
-          <LabelList 
-            dataKey="value" 
-            position="top" 
-            formatter={(v) => formatValue(v)} 
-            style={{ fill: "#003366", fontSize: "12px" }} 
+          <LabelList
+            dataKey="value"
+            position="top"
+            formatter={(v) => formatValue(v)}
+            style={{ fill: "#003366", fontSize: "12px" }}
           />
         </Bar>
       </ComposedChart>
@@ -159,194 +162,434 @@ function BarTrendChart({ data, metric }) {
   );
 }
 
-/* ===== Independent Comparison Block ===== */
-function ComparisonBlock({ raw }) {
-  if (!raw) return null;
-  const countries = Object.keys(raw.countries || {});
-  const results = [];
+/* ===== Independent Comparison Block (robust selectors + dual tooltip) ===== */
+function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
+  const [country2, setCountry2] = useState("");
+  const [city2, setCity2] = useState("");
+  const [submarket2, setSubmarket2] = useState("");
+  const [metric, setMetric] = useState("primeRentEurSqmMonth");
 
-  for (const c of countries) {
-    const cities = Object.keys(raw.countries[c]?.cities || {});
-    for (const ct of cities) {
-      const periods = Object.keys(raw.countries[c].cities[ct]?.periods || {});
-      if (periods.length === 0) continue;
-      
-      const sortedPeriods = periods.sort(sortPeriods);
-      const latest = sortedPeriods[sortedPeriods.length - 1]; // Find the latest period
-      const data = raw.countries[c].cities[ct].periods[latest];
-      
-      const market = data.market || {}; 
-      
-      const val = coerceNumber(market.primeRentEurSqmMonth);
-      if (val) results.push({ country: c, city: ct, rent: val, period: latest });
+  // Initialize comparison with the first available triplet from JSON
+  useEffect(() => {
+    if (!raw?.countries) return;
+    const cList = Object.keys(raw.countries);
+    if (!cList.length) return;
+
+    const firstC = cList[0];
+    const cities = Object.keys(raw.countries[firstC]?.cities || {});
+    const firstCity = cities[0] || "";
+    const periods = Object.keys(raw.countries[firstC]?.cities?.[firstCity]?.periods || {});
+    const firstPeriod = periods[0] || "";
+    const subs =
+      (firstPeriod &&
+        Object.keys(
+          raw.countries[firstC]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets || {}
+        )) ||
+      [];
+
+    setCountry2((prev) => prev || firstC);
+    setCity2((prev) => prev || firstCity);
+    setSubmarket2((prev) => prev || subs[0] || "");
+  }, [raw]);
+
+  // When country2 changes → reset city2 & submarket2 sensibly
+  useEffect(() => {
+    if (!country2) return;
+    const cities = Object.keys(raw?.countries?.[country2]?.cities || {});
+    if (!cities.length) {
+      setCity2("");
+      setSubmarket2("");
+      return;
     }
-  }
+    if (!cities.includes(city2)) {
+      const nextCity = cities[0];
+      setCity2(nextCity);
+    }
+  }, [country2, raw]); // eslint-disable-line
 
-  results.sort((a, b) => b.rent - a.rent);
+  // When city2 changes → reset submarket2 sensibly
+  useEffect(() => {
+    if (!country2 || !city2) return;
+    const periods = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {});
+    const firstPeriod = periods[0] || "";
+    const subs = Object.keys(
+      raw?.countries?.[country2]?.cities?.[city2]?.periods?.[firstPeriod]?.subMarkets || {}
+    );
+    if (!subs.length) {
+      if (submarket2) setSubmarket2("");
+      return;
+    }
+    if (!subs.includes(submarket2)) {
+      setSubmarket2(subs[0]);
+    }
+  }, [country2, city2, raw]); // eslint-disable-line
+
+  if (!raw?.countries) return null;
+
+  const countries = Object.keys(raw.countries);
+  const cities2 = country2 ? Object.keys(raw?.countries?.[country2]?.cities || {}) : [];
+  const submarkets2 = (() => {
+    const firstPeriodKey = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {})[0];
+    if (!firstPeriodKey) return [];
+    return Object.keys(
+      raw?.countries?.[country2]?.cities?.[city2]?.periods?.[firstPeriodKey]?.subMarkets || {}
+    );
+  })();
+
+  const baseData = buildTrendSeries(raw, baseCountry, baseCity, baseSubmarket, metric);
+  let compData = buildTrendSeries(raw, country2, city2, submarket2, metric);
+  if (compData.length === 0) compData = buildTrendSeries(raw, country2, city2, "", metric);
+
+  const fmt = (v) => {
+    if (metric === "vacancyRate" || metric === "primeYield") return fmtPercent(v);
+    if (
+      metric === "primeRentEurSqmMonth" ||
+      metric === "averageRentEurSqmMonth" ||
+      metric === "serviceChargeEurSqmMonth"
+    )
+      return fmtMoney(v);
+    return fmtNumber(v);
+  };
+
+  const allPeriods = Array.from(
+    new Set([...baseData.map((d) => d.period), ...compData.map((d) => d.period)])
+  ).sort((a, b) => {
+    const [qa, ya] = a.split(" ");
+    const [qb, yb] = b.split(" ");
+    if (ya !== yb) return Number(ya) - Number(yb);
+    return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
+  });
+
+  const merged = allPeriods.map((p) => ({
+    period: p,
+    base: baseData.find((d) => d.period === p)?.value ?? null,
+    comp: compData.find((d) => d.period === p)?.value ?? null,
+  }));
 
   return (
-    <div className="section-box">
+    <div className="section-box" style={{ marginTop: "30px" }}>
       <div className="section-header">
-        <span>⚖️</span> Comparison of Prime Rents (Latest Period)
+        <span>🟦🟧</span> Market Comparison (Independent)
       </div>
-      {results.map((r) => (
-        <div key={`${r.city}-${r.period}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
-          <div>{r.city} ({r.country}) <span style={{fontSize: '0.8em', color: '#666'}}>— {r.period}</span></div>
-          <div>{fmtMoney(r.rent)} €/sqm/month</div>
+
+      <div style={{ padding: "10px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "6px",
+            marginBottom: "10px",
+          }}
+        >
+          <select value={country2} onChange={(e) => setCountry2(e.target.value)}>
+            {countries.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+
+          <select value={city2} onChange={(e) => setCity2(e.target.value)}>
+            {cities2.map((ct) => (
+              <option key={ct} value={ct}>
+                {ct}
+              </option>
+            ))}
+          </select>
+
+          {submarkets2.length > 0 && (
+            <select value={submarket2} onChange={(e) => setSubmarket2(e.target.value)}>
+              {submarkets2.map((sm) => (
+                <option key={sm} value={sm}>
+                  {sm}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <select value={metric} onChange={(e) => setMetric(e.target.value)}>
+            {[
+              { key: "totalStock", label: "Total Stock (sqm)" },
+              { key: "vacancy", label: "Vacancy (sqm)" },
+              { key: "vacancyRate", label: "Vacancy Rate (%)" },
+              { key: "primeRentEurSqmMonth", label: "Prime Rent (€/sqm/month)" },
+              { key: "averageRentEurSqmMonth", label: "Average Rent (€/sqm/month)" },
+              { key: "primeYield", label: "Prime Yield (%)" },
+              { key: "fitOutEurSqmShellCore", label: "Fit-out (€/sqm)" },
+              { key: "serviceChargeEurSqmMonth", label: "Service charge (€/sqm/month)" },
+            ].map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </select>
         </div>
-      ))}
+
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={merged} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+            <XAxis dataKey="period" />
+            <YAxis />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                // Show BOTH series, with clear naming
+                const pairs = payload
+                  .filter((p) => p?.dataKey === "base" || p?.dataKey === "comp")
+                  .map((p) => ({
+                    name: p.dataKey === "base" ? baseCity : city2,
+                    val: p.value,
+                    color: p.dataKey === "base" ? "#004488" : "#e67e22",
+                  }));
+                return (
+                  <div
+                    style={{
+                      background: "white",
+                      border: "1px solid #ccc",
+                      padding: "6px 8px",
+                      fontSize: "12px",
+                    }}
+                  >
+                    <strong style={{ display: "block", marginBottom: 4 }}>{label}</strong>
+                    {pairs.map((x) => (
+                      <div key={x.name} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            width: 10,
+                            height: 10,
+                            background: x.color,
+                          }}
+                        />
+                        <span style={{ minWidth: 80 }}>{x.name}:</span>
+                        <span>{fmt(x.val)}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }}
+            />
+            <Line type="monotone" dataKey="base" stroke="#004488" dot={false} />
+            <Line type="monotone" dataKey="comp" stroke="#e67e22" dot={false} />
+            <Bar dataKey="base" fill="#003366" barSize={20} />
+            <Bar dataKey="comp" fill="#e67e22" barSize={20} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
 
-/* ===== Main App ===== */
+/* ===== Main App (first block kept intact in spirit, plus trend + comparison) ===== */
 export default function DataExplorerApp() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorLoading, setErrorLoading] = useState(null);
+
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [submarket, setSubmarket] = useState("");
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
-  /* === Load JSON and Set Initial State === */
+  // initial load
   useEffect(() => {
     setLoading(true);
-    // Assuming market_data.json is accessible via the relative path
-    fetch("/market_data.json") 
+    fetch("/market_data.json")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((json) => {
         setRaw(json);
-        setLoading(false);
-        
         const countries = Object.keys(json?.countries || {});
-        if (countries.length) {
-            const firstCountry = countries[0];
-            setCountry(firstCountry);
-            
-            const firstCity = Object.keys(json.countries[firstCountry]?.cities || {})[0] || "";
-            setCity(firstCity);
-            
-            // Get and sort periods to ensure the first one is the earliest
-            const periods = Object.keys(json.countries[firstCountry]?.cities?.[firstCity]?.periods || {});
-            const firstPeriod = periods.sort(sortPeriods)[0] || ""; 
-            setPeriod(firstPeriod);
-            
-            const firstSubmarkets = firstPeriod
-                ? Object.keys(json.countries[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets || {})
-                : [];
-            setSubmarket(firstSubmarkets[0] || "");
+        if (!countries.length) {
+          setLoading(false);
+          return;
         }
+        const firstCountry = countries[0];
+        const cities = Object.keys(json?.countries?.[firstCountry]?.cities || {});
+        const firstCity = cities[0] || "";
+        const periods = Object.keys(
+          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {}
+        );
+        const firstPeriod = periods[0] || "";
+        const submarkets = Object.keys(
+          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets ||
+            {}
+        );
+
+        setCountry(firstCountry);
+        setCity(firstCity);
+        setPeriod(firstPeriod);
+        setSubmarket(submarkets[0] || "");
+        setLoading(false);
       })
       .catch((err) => {
         setErrorLoading(err.message || String(err));
         setLoading(false);
       });
-  }, []); 
+  }, []);
 
-  if (loading) return <div style={{ padding: 30 }}>Loading…</div>;
-  if (errorLoading)
+  const countries = Object.keys(raw?.countries || {});
+  const cities = country ? Object.keys(raw?.countries?.[country]?.cities || {}) : [];
+  const periods = city
+    ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {})
+    : [];
+
+  // guard for selections when parent changes
+  useEffect(() => {
+    if (!raw) return;
+    if (!countries.includes(country) && countries.length) setCountry(countries[0]);
+  }, [raw]); // eslint-disable-line
+
+  useEffect(() => {
+    const cityList = Object.keys(raw?.countries?.[country]?.cities || []);
+    if (city && !cityList.includes(city)) {
+      setCity(cityList[0] || "");
+    }
+  }, [country, raw]); // eslint-disable-line
+
+  useEffect(() => {
+    const periodList = Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || []);
+    if (period && !periodList.includes(period)) {
+      setPeriod(periodList[0] || "");
+    }
+    const firstPeriod = periodList[0] || "";
+    const subs = Object.keys(
+      raw?.countries?.[country]?.cities?.[city]?.periods?.[firstPeriod]?.subMarkets || {}
+    );
+    if (submarket && subs.length && !subs.includes(submarket)) {
+      setSubmarket(subs[0]);
+    }
+  }, [country, city, raw]); // eslint-disable-line
+
+  const selectedPeriodObj =
+    raw?.countries?.[country]?.cities?.[city]?.periods?.[period] || null;
+
+  const submarketsFromJson = selectedPeriodObj?.subMarkets
+    ? Object.keys(selectedPeriodObj.subMarkets)
+    : [];
+
+  const cityObj = raw?.countries?.[country]?.cities?.[city] || {};
+  const leasingCity = cityObj?.leasing || {};
+
+  const metricSource =
+    (submarket && selectedPeriodObj?.subMarkets?.[submarket]) ||
+    selectedPeriodObj?.market ||
+    null;
+
+  const leasingSource =
+    selectedPeriodObj?.subMarkets?.[submarket]?.leasing ||
+    selectedPeriodObj?.leasing ||
+    leasingCity ||
+    {};
+
+  const g = (key) => {
+    if (!metricSource) return null;
+    switch (key) {
+      case "totalStock":
+        return metricSource.totalStock ?? null;
+      case "vacancy":
+        return metricSource.vacancy ?? null;
+      case "vacancyRate":
+        return metricSource.vacancyRate ?? null;
+      case "takeUp":
+        return metricSource.takeUp ?? null;
+      case "netAbsorption":
+        return metricSource.netAbsorption ?? null;
+      case "completionsYTD":
+        return metricSource.completionsYTD ?? null;
+      case "underConstruction":
+        return metricSource.underConstruction ?? null;
+      case "primeRentEurSqmMonth":
+        return metricSource.primeRentEurSqmMonth ?? null;
+      case "averageRentEurSqmMonth":
+        return metricSource.averageRentEurSqmMonth ?? null;
+      case "primeYield":
+        return metricSource.primeYield ?? null;
+      default:
+        return metricSource[key] ?? null;
+    }
+  };
+
+  if (loading) {
+    return <div style={{ padding: 30 }}>Loading…</div>;
+  }
+  if (errorLoading) {
     return (
       <div style={{ padding: 30, color: "crimson" }}>
         Error loading data: {errorLoading}
       </div>
     );
-
-  /* === Data Access on Render (Safely) === */
-  const countries = Object.keys(raw?.countries || {});
-  const currentCities = country ? Object.keys(raw.countries[country]?.cities || {}) : [];
-  // Sort periods for the selector
-  const currentPeriods = city ? Object.keys(raw.countries[country]?.cities?.[city]?.periods || {}).sort(sortPeriods) : [];
-
-  const periodObj = raw.countries[country]?.cities?.[city]?.periods?.[period];
-  const subs = periodObj ? Object.keys(periodObj.subMarkets || {}) : [];
-
-  // Getter function: Submarket data overrides market data
-  const g = (k) => periodObj?.subMarkets?.[submarket]?.[k] ?? periodObj?.market?.[k] ?? null;
-
-  // Leasing data access: Submarket leasing > City leasing
-  const leasing = periodObj?.subMarkets?.[submarket]?.leasing ?? periodObj?.leasing ?? {};
-
-  /* === Cascading Selector Handlers: Fix for state synchronization crash === */
-  
-  const handleCountryChange = (e) => {
-    const c = e.target.value;
-    setCountry(c);
-    
-    // Calculate and set all dependent values immediately
-    const nextCities = Object.keys(raw.countries[c]?.cities || {});
-    const nextCity = nextCities[0] || "";
-    setCity(nextCity);
-
-    const nextPeriods = Object.keys(raw.countries[c]?.cities?.[nextCity]?.periods || {}).sort(sortPeriods);
-    const nextPeriod = nextPeriods[0] || "";
-    setPeriod(nextPeriod);
-
-    const nextSubmarkets = nextPeriod 
-        ? Object.keys(raw.countries[c]?.cities?.[nextCity]?.periods?.[nextPeriod]?.subMarkets || {}) 
-        : [];
-    setSubmarket(nextSubmarkets[0] || "");
-  };
-
-  const handleCityChange = (e) => {
-    const cityVal = e.target.value;
-    setCity(cityVal);
-    
-    // Calculate and set dependent values immediately
-    const nextPeriods = Object.keys(raw.countries[country]?.cities?.[cityVal]?.periods || {}).sort(sortPeriods);
-    const nextPeriod = nextPeriods[0] || "";
-    setPeriod(nextPeriod);
-
-    const nextSubmarkets = nextPeriod 
-        ? Object.keys(raw.countries[country]?.cities?.[cityVal]?.periods?.[nextPeriod]?.subMarkets || {}) 
-        : [];
-    setSubmarket(nextSubmarkets[0] || "");
-  };
-  
-  const handlePeriodChange = (e) => {
-      const p = e.target.value;
-      setPeriod(p);
-      
-      // Recalculate submarkets for the new period
-      const nextSubmarkets = p 
-        ? Object.keys(raw.countries[country]?.cities?.[city]?.periods?.[p]?.subMarkets || {}) 
-        : [];
-      // If the current submarket is no longer valid, default to the first one
-      if (!nextSubmarkets.includes(submarket)) {
-          setSubmarket(nextSubmarkets[0] || "");
-      }
   }
 
-
-  /* === Render === */
   return (
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
-      <h1>{city} Office Market</h1>
+      <h1>{city || "Market"} Office Market</h1>
 
-      {/* Selectors */}
       <div>
-        <select value={country} onChange={handleCountryChange}>
+        <select
+          value={country}
+          onChange={(e) => {
+            const c = e.target.value;
+            setCountry(c);
+            const nextCities = Object.keys(raw?.countries?.[c]?.cities || {});
+            const nextCity = nextCities[0] || "";
+            setCity(nextCity);
+            const nextPeriods = Object.keys(
+              raw?.countries?.[c]?.cities?.[nextCity]?.periods || {}
+            );
+            const nextPeriod = nextPeriods[0] || "";
+            setPeriod(nextPeriod);
+            const nextSubs = Object.keys(
+              raw?.countries?.[c]?.cities?.[nextCity]?.periods?.[nextPeriod]?.subMarkets || {}
+            );
+            setSubmarket(nextSubs[0] || "");
+          }}
+        >
           {countries.map((c) => (
-            <option key={c}>{c}</option>
+            <option key={c} value={c}>
+              {c}
+            </option>
           ))}
         </select>
-        <select value={city} onChange={handleCityChange}>
-          {currentCities.map((ct) => (
-            <option key={ct}>{ct}</option>
+
+        <select
+          value={city}
+          onChange={(e) => {
+            const cityVal = e.target.value;
+            setCity(cityVal);
+            const nextPeriods = Object.keys(
+              raw?.countries?.[country]?.cities?.[cityVal]?.periods || {}
+            );
+            const nextPeriod = nextPeriods[0] || "";
+            setPeriod(nextPeriod);
+            const nextSubs = Object.keys(
+              raw?.countries?.[country]?.cities?.[cityVal]?.periods?.[nextPeriod]?.subMarkets || {}
+            );
+            setSubmarket(nextSubs[0] || "");
+          }}
+        >
+          {cities.map((ct) => (
+            <option key={ct} value={ct}>
+              {ct}
+            </option>
           ))}
         </select>
+
         <select value={submarket} onChange={(e) => setSubmarket(e.target.value)}>
-          {subs.map((s) => (
-            <option key={s}>{s}</option>
+          {submarketsFromJson.map((sm) => (
+            <option key={sm} value={sm}>
+              {sm}
+            </option>
           ))}
         </select>
-        <select value={period} onChange={handlePeriodChange}>
-          {currentPeriods.map((p) => (
-            <option key={p}>{p}</option>
+
+        <select value={period} onChange={(e) => setPeriod(e.target.value)}>
+          {periods.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
           ))}
         </select>
       </div>
@@ -355,32 +598,65 @@ export default function DataExplorerApp() {
         {city} — {period} — {submarket || "City total"}
       </h2>
 
-      {/* ---- Market Metrics (The previously error-prone section is now correct) ---- */}
+      {/* ---- Market Metrics (first block kept) ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📊</span> Market Metrics
         </div>
         <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
         <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
-        <Row label="Vacancy Rate (%)" value={fmtPercent(g("vacancyRate"))} />
+        <Row
+          label="Vacancy Rate (%)"
+          value={fmtPercent(
+            (() => {
+              const vr = coerceNumber(g("vacancyRate"));
+              if (vr === null) return null;
+              return Math.abs(vr) <= 1 ? vr * 100 : vr;
+            })()
+          )}
+        />
         <Row label="Take-up (sqm)" value={fmtNumber(g("takeUp"))} />
         <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
         <Row label="Completed (sqm, YTD)" value={fmtNumber(g("completionsYTD"))} />
         <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
-        <Row label="Prime Rent (€/sqm/month)" value={fmtMoney(g("primeRentEurSqmMonth"))} />
-        <Row label="Average Rent (€/sqm/month)" value={fmtMoney(g("averageRentEurSqmMonth"))} />
-        <Row label="Prime Yield (%)" value={fmtPercent(g("primeYield"))} />
+        <Row
+          label="Prime Rent (€/sqm/month)"
+          value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))}
+        />
+        <Row
+          label="Average Rent (€/sqm/month)"
+          value={fmtMoney(coerceNumber(g("averageRentEurSqmMonth")))}
+        />
+        <Row
+          label="Prime Yield (%)"
+          value={fmtPercent(
+            (() => {
+              const py = coerceNumber(g("primeYield"));
+              if (py === null) return null;
+              return Math.abs(py) <= 1 ? py * 100 : py;
+            })()
+          )}
+        />
       </div>
-      
-      {/* ---- Leasing ---- */}
+
+      {/* ---- Leasing (first block kept) ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📝</span> Leasing Conditions
         </div>
-        <Row label="Rent-free period (month/year)" value={fmtNumber(leasing?.rentFreeMonthPerYear)} />
-        <Row label="Lease length (months)" value={fmtNumber(leasing?.leaseLengthMonths)} />
-        <Row label="Fit-out (€/sqm)" value={fmtNumber(leasing?.fitOutEurSqmShellCore)} />
-        <Row label="Service charge (€/sqm/month)" value={fmtMoney(leasing?.serviceChargeEurSqmMonth)} />
+        <Row
+          label="Typical rent-free period (month/year)"
+          value={fmtMoney(leasingSource?.rentFreeMonthPerYear ?? null)}
+        />
+        <Row
+          label="Typical lease length (months)"
+          value={fmtNumber(leasingSource?.leaseLengthMonths ?? null)}
+        />
+        <Row label="Fit-out (€/sqm)" value={fmtNumber(leasingSource?.fitOutEurSqmShellCore ?? null)} />
+        <Row
+          label="Service charge (€/sqm/month)"
+          value={fmtMoney(leasingSource?.serviceChargeEurSqmMonth ?? null)}
+        />
       </div>
 
       {/* ---- Historical Trend ---- */}
@@ -392,12 +668,7 @@ export default function DataExplorerApp() {
           <select
             value={selectedMetric}
             onChange={(e) => setSelectedMetric(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "8px",
-              fontSize: "15px",
-              marginBottom: "10px",
-            }}
+            style={{ width: "100%", padding: "8px", fontSize: "15px", marginBottom: "10px" }}
           >
             {[
               { key: "totalStock", label: "Total Stock (sqm)" },
@@ -415,15 +686,20 @@ export default function DataExplorerApp() {
             ))}
           </select>
 
-          <BarTrendChart 
-            data={buildTrendSeries(raw, country, city, submarket, selectedMetric)} 
-            metric={selectedMetric} 
+          <BarTrendChart
+            data={buildTrendSeries(raw, country, city, submarket, selectedMetric)}
+            metric={selectedMetric}
           />
         </div>
       </div>
 
       {/* ---- Independent Comparison ---- */}
-      <ComparisonBlock raw={raw} />
+      <ComparisonBlock
+        raw={raw}
+        baseCountry={country}
+        baseCity={city}
+        baseSubmarket={submarket}
+      />
     </div>
   );
 }
