@@ -9,7 +9,7 @@ import {
   Tooltip,
   LabelList,
 } from "recharts";
-// import "./App.css"; // Ensure your CSS file is in the correct location
+import "./App.css"; // Ensure your CSS file is in the correct location
 
 /* ===== Helpers ===== */
 function fmtNumber(n) {
@@ -71,11 +71,8 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
     const cityData = periodsObj[p];
     if (!cityData) continue;
     
-    // Submarket data overrides market data
     const subMarketData = cityData.subMarkets?.[submarket] || {};
     const marketData = cityData.market || {};
-    
-    // Leasing data access: submarket leasing > city leasing
     const leasingSub = cityData.subMarkets?.[submarket]?.leasing || {};
     const leasingCity = cityData.leasing || {};
     
@@ -178,7 +175,6 @@ function ComparisonBlock({ raw }) {
       const latest = sortedPeriods[sortedPeriods.length - 1]; // Find the latest period
       const data = raw.countries[c].cities[ct].periods[latest];
       
-      // We only compare the city's overall market data, not submarkets
       const market = data.market || {}; 
       
       const val = coerceNumber(market.primeRentEurSqmMonth);
@@ -359,12 +355,11 @@ export default function DataExplorerApp() {
         {city} — {period} — {submarket || "City total"}
       </h2>
 
-      {/* ---- Market Metrics ---- */}
+      {/* ---- Market Metrics (The previously error-prone section is now correct) ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📊</span> Market Metrics
         </div>
-        {/* CORRECTED THIS SECTION TO ENSURE PROPER ROW CLOSURE */}
         <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
         <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
         <Row label="Vacancy Rate (%)" value={fmtPercent(g("vacancyRate"))} />
