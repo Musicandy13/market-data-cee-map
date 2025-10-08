@@ -11,25 +11,26 @@ import {
 } from "recharts";
 import "./App.css";
 
-/* ===== Helpers (kept semantics consistent with your 1st block) ===== */
+/* ===== Helpers (keep first-block semantics) ===== */
 function fmtNumber(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
-  if (Math.abs(Number(n)) >= 1000)
-    return Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
-  return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const v = Number(n);
+  if (Math.abs(v) >= 1000)
+    return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 function fmtMoney(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
-  return Number(n).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const v = Number(n);
+  return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtPercent(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
-  return Number(n).toFixed(2) + "%";
+  const v = Number(n);
+  if (Math.abs(v) <= 1) return (v * 100).toFixed(2) + "%";
+  return v.toFixed(2) + "%";
 }
 
 function coerceNumber(v) {
@@ -38,11 +39,8 @@ function coerceNumber(v) {
   let s = String(v).trim();
   if (s === "" || s === "–") return null;
   s = s.replace(/[€%\s]/g, "");
-  if (s.indexOf(",") >= 0 && s.indexOf(".") >= 0) {
-    s = s.replace(/\./g, "").replace(",", ".");
-  } else if (s.indexOf(",") >= 0) {
-    s = s.replace(",", ".");
-  }
+  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (s.includes(",")) s = s.replace(",", ".");
   const num = parseFloat(s);
   return Number.isNaN(num) ? null : num;
 }
@@ -96,14 +94,15 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
 const SingleTooltip = ({ active, payload, label, metric }) => {
   if (!active || !payload || !payload.length) return null;
   const val = payload[0]?.value;
-  let text = fmtNumber(val);
+  let text;
   if (metric === "vacancyRate" || metric === "primeYield") text = fmtPercent(val);
-  if (
+  else if (
     metric === "primeRentEurSqmMonth" ||
     metric === "averageRentEurSqmMonth" ||
     metric === "serviceChargeEurSqmMonth"
   )
     text = fmtMoney(val);
+  else text = fmtNumber(val);
 
   return (
     <div
@@ -202,12 +201,11 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
       return;
     }
     if (!cities.includes(city2)) {
-      const nextCity = cities[0];
-      setCity2(nextCity);
+      setCity2(cities[0]);
     }
   }, [country2, raw]); // eslint-disable-line
 
-  // When city2 changes → reset submarket2 sensibly
+  // When city2 changes → reset submarket2
   useEffect(() => {
     if (!country2 || !city2) return;
     const periods = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {});
@@ -332,7 +330,6 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
             <Tooltip
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
-                // Show BOTH series, with clear naming
                 const pairs = payload
                   .filter((p) => p?.dataKey === "base" || p?.dataKey === "comp")
                   .map((p) => ({
@@ -361,7 +358,15 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
                           }}
                         />
                         <span style={{ minWidth: 80 }}>{x.name}:</span>
-                        <span>{fmt(x.val)}</span>
+                        <span>
+                          {metric === "vacancyRate" || metric === "primeYield"
+                            ? fmtPercent(x.val)
+                            : metric === "primeRentEurSqmMonth" ||
+                              metric === "averageRentEurSqmMonth" ||
+                              metric === "serviceChargeEurSqmMonth"
+                            ? fmtMoney(x.val)
+                            : fmtNumber(x.val)}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -379,7 +384,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   );
 }
 
-/* ===== Main App (first block kept intact in spirit, plus trend + comparison) ===== */
+/* ===== Main App (first block kept, plus trend + comparison) ===== */
 export default function DataExplorerApp() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -413,7 +418,7 @@ export default function DataExplorerApp() {
           json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {}
         );
         const firstPeriod = periods[0] || "";
-        const submarkets = Object.keys(
+        const subs = Object.keys(
           json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets ||
             {}
         );
@@ -421,7 +426,7 @@ export default function DataExplorerApp() {
         setCountry(firstCountry);
         setCity(firstCity);
         setPeriod(firstPeriod);
-        setSubmarket(submarkets[0] || "");
+        setSubmarket(subs[0] || "");
         setLoading(false);
       })
       .catch((err) => {
@@ -436,7 +441,7 @@ export default function DataExplorerApp() {
     ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {})
     : [];
 
-  // guard for selections when parent changes
+  // keep selections valid when parents change
   useEffect(() => {
     if (!raw) return;
     if (!countries.includes(country) && countries.length) setCountry(countries[0]);
@@ -599,47 +604,46 @@ export default function DataExplorerApp() {
       </h2>
 
       {/* ---- Market Metrics (first block kept) ---- */}
-<div className="section-box">
-  <div className="section-header">
-    <span>📊</span> Market Metrics
-  </div>
+      <div className="section-box">
+        <div className="section-header">
+          <span>📊</span> Market Metrics
+        </div>
 
-  <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
-  <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
-  <Row
-    label="Vacancy Rate (%)"
-    value={fmtPercent(
-      (() => {
-        const vr = coerceNumber(g("vacancyRate"));
-        if (vr === null) return null;
-        return Math.abs(vr) <= 1 ? vr * 100 : vr;
-      })()
-    )}
-  />
-  <Row label="Take-up (sqm)" value={fmtNumber(g("takeUp"))} />
-  <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
-  <Row label="Completed (sqm, YTD)" value={fmtNumber(g("completionsYTD"))} />
-  <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
-  <Row
-    label="Prime Rent (€/sqm/month)"
-    value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))}
-  />
-  <Row
-    label="Average Rent (€/sqm/month)"
-    value={fmtMoney(coerceNumber(g("averageRentEurSqmMonth")))}
-  />
-  <Row
-    label="Prime Yield (%)"
-    value={fmtPercent(
-      (() => {
-        const py = coerceNumber(g("primeYield"));
-        if (py === null) return null;
-        return Math.abs(py) <= 1 ? py * 100 : py;
-      })()
-    )}
-  />
-</div>
-
+        <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
+        <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
+        <Row
+          label="Vacancy Rate (%)"
+          value={fmtPercent(
+            (() => {
+              const vr = coerceNumber(g("vacancyRate"));
+              if (vr === null) return null;
+              return Math.abs(vr) <= 1 ? vr * 100 : vr;
+            })()
+          )}
+        />
+        <Row label="Take-up (sqm)" value={fmtNumber(g("takeUp"))} />
+        <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
+        <Row label="Completed (sqm, YTD)" value={fmtNumber(g("completionsYTD"))} />
+        <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
+        <Row
+          label="Prime Rent (€/sqm/month)"
+          value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))}
+        />
+        <Row
+          label="Average Rent (€/sqm/month)"
+          value={fmtMoney(coerceNumber(g("averageRentEurSqmMonth")))}
+        />
+        <Row
+          label="Prime Yield (%)"
+          value={fmtPercent(
+            (() => {
+              const py = coerceNumber(g("primeYield"));
+              if (py === null) return null;
+              return Math.abs(py) <= 1 ? py * 100 : py;
+            })()
+          )}
+        />
+      </div>
 
       {/* ---- Leasing (first block kept) ---- */}
       <div className="section-box">
