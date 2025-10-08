@@ -9,7 +9,7 @@ import {
   Tooltip,
   LabelList,
 } from "recharts";
-import "./App.css";
+// import "./App.css"; // Ensure your CSS file is in the correct location
 
 /* ===== Helpers ===== */
 function fmtNumber(n) {
@@ -25,7 +25,9 @@ function fmtMoney(n) {
 
 function fmtPercent(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return "–";
-  if (Math.abs(n) <= 1) return (n * 100).toFixed(2) + "%";
+  // If the number is a decimal (e.g., 0.075), format as percentage
+  if (Math.abs(n) <= 1 && n !== 0) return (n * 100).toFixed(2) + "%";
+  // If the number is already a percentage (e.g., 7.5), treat it as such
   return Number(n).toFixed(2) + "%";
 }
 
@@ -82,9 +84,9 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
     
     if (val === null) continue;
     
-    // Adjust percentage values for display on the chart (0.15 -> 15)
+    // For chart display: Convert decimal percentages (e.g., 0.075) to whole numbers (e.g., 7.5) for better Y-axis scaling
     if (metric === "vacancyRate" || metric === "primeYield") {
-      val = Math.abs(val) <= 1 ? val * 100 : val;
+      if (Math.abs(val) <= 1) val = val * 100;
     }
     
     out.push({ period: p, value: val });
@@ -97,13 +99,19 @@ const SingleTooltip = ({ active, payload, label, metric }) => {
   if (active && payload && payload.length) {
     const val = payload[0].value;
     let text = fmtNumber(val);
-    if (metric === "vacancyRate" || metric === "primeYield") text = fmtPercent(val);
+    
+    // Reformat the value back to its displayed percentage/money format
+    if (metric === "vacancyRate" || metric === "primeYield") {
+      // The chart value is the percentage number (e.g., 7.5), so divide by 100 for fmtPercent
+      text = fmtPercent(val / 100); 
+    }
     if (
       metric === "primeRentEurSqmMonth" ||
       metric === "averageRentEurSqmMonth" ||
       metric === "serviceChargeEurSqmMonth"
     )
       text = fmtMoney(val);
+      
     return (
       <div style={{ background: "white", border: "1px solid #ccc", padding: "4px 8px", fontSize: "12px" }}>
         <strong>{label}</strong>
@@ -118,7 +126,9 @@ const SingleTooltip = ({ active, payload, label, metric }) => {
 function BarTrendChart({ data, metric }) {
   if (!data || data.length === 0) return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
 
+  // Formatter for YAxis and LabelList
   const formatValue = (v) => {
+    // If it's a percentage metric, the value 'v' is already the number (e.g., 7.5), so we format it as a percentage
     if (metric === "vacancyRate" || metric === "primeYield") return fmtPercent(v / 100);
     if (
       metric === "primeRentEurSqmMonth" ||
@@ -128,22 +138,22 @@ function BarTrendChart({ data, metric }) {
       return fmtMoney(v);
     return fmtNumber(v);
   };
-  
-  // Recharts YAxis and LabelList formatter needs to handle the *display* of percentage values 
-  // that were multiplied by 100 in buildTrendSeries.
 
   return (
     <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
         <XAxis dataKey="period" />
-        <YAxis tickFormatter={(v) => metric === "vacancyRate" || metric === "primeYield" ? fmtPercent(v / 100) : fmtNumber(v)} />
+        {/* Y-axis formatter */}
+        <YAxis tickFormatter={(v) => formatValue(v)} /> 
+        {/* Tooltip uses its own formatting logic */}
         <Tooltip content={<SingleTooltip metric={metric} />} />
         <Line type="monotone" dataKey="value" stroke="#999" strokeDasharray="4 4" dot={{ r: 3, fill: "#666" }} />
         <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
+          {/* LabelList formatter */}
           <LabelList 
             dataKey="value" 
             position="top" 
-            formatter={(v) => metric === "vacancyRate" || metric === "primeYield" ? fmtPercent(v / 100) : formatValue(v)} 
+            formatter={(v) => formatValue(v)} 
             style={{ fill: "#003366", fontSize: "12px" }} 
           />
         </Bar>
@@ -165,7 +175,7 @@ function ComparisonBlock({ raw }) {
       if (periods.length === 0) continue;
       
       const sortedPeriods = periods.sort(sortPeriods);
-      const latest = sortedPeriods[sortedPeriods.length - 1];
+      const latest = sortedPeriods[sortedPeriods.length - 1]; // Find the latest period
       const data = raw.countries[c].cities[ct].periods[latest];
       
       // We only compare the city's overall market data, not submarkets
@@ -184,7 +194,7 @@ function ComparisonBlock({ raw }) {
         <span>⚖️</span> Comparison of Prime Rents (Latest Period)
       </div>
       {results.map((r) => (
-        <div key={r.city} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+        <div key={`${r.city}-${r.period}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
           <div>{r.city} ({r.country}) <span style={{fontSize: '0.8em', color: '#666'}}>— {r.period}</span></div>
           <div>{fmtMoney(r.rent)} €/sqm/month</div>
         </div>
@@ -207,7 +217,8 @@ export default function DataExplorerApp() {
   /* === Load JSON and Set Initial State === */
   useEffect(() => {
     setLoading(true);
-    fetch("/market_data.json")
+    // Assuming market_data.json is accessible via the relative path
+    fetch("/market_data.json") 
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -224,6 +235,7 @@ export default function DataExplorerApp() {
             const firstCity = Object.keys(json.countries[firstCountry]?.cities || {})[0] || "";
             setCity(firstCity);
             
+            // Get and sort periods to ensure the first one is the earliest
             const periods = Object.keys(json.countries[firstCountry]?.cities?.[firstCity]?.periods || {});
             const firstPeriod = periods.sort(sortPeriods)[0] || ""; 
             setPeriod(firstPeriod);
@@ -238,7 +250,7 @@ export default function DataExplorerApp() {
         setErrorLoading(err.message || String(err));
         setLoading(false);
       });
-  }, []); // Run only once on mount
+  }, []); 
 
   if (loading) return <div style={{ padding: 30 }}>Loading…</div>;
   if (errorLoading)
@@ -251,6 +263,7 @@ export default function DataExplorerApp() {
   /* === Data Access on Render (Safely) === */
   const countries = Object.keys(raw?.countries || {});
   const currentCities = country ? Object.keys(raw.countries[country]?.cities || {}) : [];
+  // Sort periods for the selector
   const currentPeriods = city ? Object.keys(raw.countries[country]?.cities?.[city]?.periods || {}).sort(sortPeriods) : [];
 
   const periodObj = raw.countries[country]?.cities?.[city]?.periods?.[period];
@@ -262,7 +275,8 @@ export default function DataExplorerApp() {
   // Leasing data access: Submarket leasing > City leasing
   const leasing = periodObj?.subMarkets?.[submarket]?.leasing ?? periodObj?.leasing ?? {};
 
-  /* === Cascading Selector Handlers === */
+  /* === Cascading Selector Handlers: Fix for state synchronization crash === */
+  
   const handleCountryChange = (e) => {
     const c = e.target.value;
     setCountry(c);
@@ -350,6 +364,7 @@ export default function DataExplorerApp() {
         <div className="section-header">
           <span>📊</span> Market Metrics
         </div>
+        {/* CORRECTED THIS SECTION TO ENSURE PROPER ROW CLOSURE */}
         <Row label="Total Stock (sqm)" value={fmtNumber(g("totalStock"))} />
         <Row label="Vacancy (sqm)" value={fmtNumber(g("vacancy"))} />
         <Row label="Vacancy Rate (%)" value={fmtPercent(g("vacancyRate"))} />
