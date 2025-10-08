@@ -18,7 +18,6 @@ function fmtNumber(n) {
     return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
-
 function fmtMoney(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   return n.toLocaleString(undefined, {
@@ -26,12 +25,10 @@ function fmtMoney(n) {
     maximumFractionDigits: 2,
   });
 }
-
 function fmtPercent(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
-  return `${Number(n).toFixed(2)}%`;
+  return Number(n).toFixed(2) + "%";
 }
-
 function coerceNumber(v) {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return v;
@@ -44,7 +41,6 @@ function coerceNumber(v) {
   const num = parseFloat(s);
   return Number.isNaN(num) ? null : num;
 }
-
 function Row({ label, value }) {
   return (
     <div className="row">
@@ -64,7 +60,6 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
     if (ya !== yb) return Number(ya) - Number(yb);
     return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
   };
-
   const out = [];
   for (const p of periods.sort(sortPeriods)) {
     const cityData = raw.countries[country].cities[city].periods[p];
@@ -74,18 +69,16 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
     const leasingSub = cityData.subMarkets?.[submarket]?.leasing || {};
     const leasingCity = cityData.leasing || {};
     const merged = { ...marketData, ...leasingCity, ...subMarketData, ...leasingSub };
-
     let val = coerceNumber(merged[metric]);
     if (val === null) continue;
     if (metric === "vacancyRate" || metric === "primeYield")
       val = Math.abs(val) <= 1 ? val * 100 : val;
-
     out.push({ period: p, value: val });
   }
   return out;
 }
 
-/* ===== Custom Tooltip ===== */
+/* ===== Custom Tooltip for single chart ===== */
 const SingleTooltip = ({ active, payload, label, metric }) => {
   if (active && payload && payload.length) {
     const val = payload[0].value;
@@ -166,7 +159,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   useEffect(() => {
     if (!raw) return;
     const cList = Object.keys(raw.countries || {});
-    if (cList.length) {
+    if (cList.length > 0) {
       const firstC = cList[0];
       const firstCity = Object.keys(raw.countries[firstC]?.cities || {})[0] || "";
       const periods = Object.keys(
@@ -189,12 +182,12 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   const countries = Object.keys(raw.countries || {});
   const cities2 = country2 ? Object.keys(raw.countries[country2]?.cities || {}) : [];
   const submarkets2 = (() => {
-    const firstPeriodKey = Object.keys(
-      raw.countries[country2]?.cities?.[city2]?.periods || {}
-    )[0];
+    const firstPeriodKey =
+      Object.keys(raw.countries[country2]?.cities?.[city2]?.periods || {})[0] || null;
     if (!firstPeriodKey) return [];
     return Object.keys(
-      raw.countries[country2].cities[city2].periods[firstPeriodKey].subMarkets || {}
+      raw.countries[country2]?.cities?.[city2]?.periods?.[firstPeriodKey]?.subMarkets ||
+        {}
     );
   })();
 
@@ -251,7 +244,10 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
               <option key={ct}>{ct}</option>
             ))}
           </select>
-          <select value={submarket2} onChange={(e) => setSubmarket2(e.target.value)}>
+          <select
+            value={submarket2}
+            onChange={(e) => setSubmarket2(e.target.value)}
+          >
             {submarkets2.map((sm) => (
               <option key={sm}>{sm}</option>
             ))}
@@ -279,9 +275,26 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
             <XAxis dataKey="period" />
             <YAxis />
             <Tooltip
-              formatter={(v, name) =>
-                `${fmt(v)} (${name === "base" ? baseCity : city2})`
-              }
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const val = payload[0].value;
+                const seriesName = payload[0].dataKey === "base" ? baseCity : city2;
+                return (
+                  <div
+                    style={{
+                      background: "white",
+                      border: "1px solid #ccc",
+                      padding: "4px 8px",
+                      fontSize: "12px",
+                    }}
+                  >
+                    <strong>{label}</strong>
+                    <div>
+                      {seriesName}: {fmt(val)}
+                    </div>
+                  </div>
+                );
+              }}
             />
             <Line type="monotone" dataKey="base" stroke="#004488" dot={false} />
             <Line type="monotone" dataKey="comp" stroke="#e67e22" dot={false} />
@@ -358,7 +371,6 @@ export default function DataExplorer() {
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
       <h1>{city} Office Market</h1>
 
-      {/* Selection */}
       <div>
         <select value={country} onChange={(e) => setCountry(e.target.value)}>
           {countries.map((c) => (
@@ -386,7 +398,6 @@ export default function DataExplorer() {
         {city} — {period} — {submarket}
       </h2>
 
-      {/* ---- Market Metrics ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📊</span> Market Metrics
@@ -423,7 +434,6 @@ export default function DataExplorer() {
         />
       </div>
 
-      {/* ---- Leasing ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📝</span> Leasing Conditions
@@ -440,7 +450,6 @@ export default function DataExplorer() {
         />
       </div>
 
-      {/* ---- Historical Trend ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📈</span> Historical Trend
@@ -479,7 +488,6 @@ export default function DataExplorer() {
         </div>
       </div>
 
-      {/* ---- Independent Comparison ---- */}
       <ComparisonBlock
         raw={raw}
         baseCountry={country}
