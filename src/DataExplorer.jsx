@@ -265,10 +265,9 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   }));
 
   return (
-    <div className="section-box" style={{ marginTop: "30px" }}>
-      <div className="section-header">
-        <span>🟦🟧</span> Market Comparison (Independent)
-      </div>
+    <div className="section-header section-header--orange">
+  Market Comparison
+</div>
 
       <div style={{ padding: "10px" }}>
         <div
