@@ -1,3 +1,4 @@
+// src/DataExplorer.jsx
 import React, { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
@@ -11,24 +12,27 @@ import {
 } from "recharts";
 import "./App.css";
 
-/* ===== Helpers ===== */
+/* ===== Helpers (keep first-block semantics) ===== */
 function fmtNumber(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
   if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
   return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+
 function fmtMoney(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
   return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
 function fmtPercent(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
   if (Math.abs(v) <= 1) return (v * 100).toFixed(2) + "%";
   return v.toFixed(2) + "%";
 }
+
 function coerceNumber(v) {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return v;
@@ -40,6 +44,7 @@ function coerceNumber(v) {
   const num = parseFloat(s);
   return Number.isNaN(num) ? null : num;
 }
+
 function Row({ label, value }) {
   return (
     <div className="row">
@@ -49,7 +54,7 @@ function Row({ label, value }) {
   );
 }
 
-/* ===== Build historical series ===== */
+/* ===== Build historical series (safe reads) ===== */
 function buildTrendSeries(raw, country, city, submarket, metric) {
   const cityNode = raw?.countries?.[country]?.cities?.[city];
   if (!cityNode?.periods) return [];
@@ -84,7 +89,7 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
   return out;
 }
 
-/* ===== Single-series tooltip for Trend chart ===== */
+/* ===== Clean single-series tooltip for Trend chart ===== */
 const SingleTooltip = ({ active, payload, label, metric }) => {
   if (!active || !payload || !payload.length) return null;
   const val = payload[0]?.value;
@@ -106,7 +111,7 @@ const SingleTooltip = ({ active, payload, label, metric }) => {
   );
 };
 
-/* ===== Trend chart ===== */
+/* ===== Trend chart (bars + faint line) ===== */
 function BarTrendChart({ data, metric }) {
   if (!data || data.length === 0) return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
 
@@ -143,7 +148,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   const [submarket2, setSubmarket2] = useState("");
   const [metric, setMetric] = useState("primeRentEurSqmMonth");
 
-  // Initialize
+  // Initialize comparison with the first available triplet from JSON
   useEffect(() => {
     if (!raw?.countries) return;
     const cList = Object.keys(raw.countries);
@@ -166,7 +171,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
     setSubmarket2((prev) => prev || subs[0] || "");
   }, [raw]);
 
-  // When country2 changes → reset city2 & submarket2
+  // When country2 changes → reset city2 & submarket2 sensibly
   useEffect(() => {
     if (!country2) return;
     const cities = Object.keys(raw?.countries?.[country2]?.cities || {});
@@ -209,6 +214,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   let compData = buildTrendSeries(raw, country2, city2, submarket2, metric);
   if (compData.length === 0) compData = buildTrendSeries(raw, country2, city2, "", metric);
 
+  // For tooltip labels
   const seriesNameBase = baseCity + (baseSubmarket ? " — " + baseSubmarket : "");
   const seriesNameComp = city2 + (submarket2 ? " — " + submarket2 : "");
 
@@ -292,7 +298,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
 
-                // Deduplicate by dataKey (Bar+Line share the same keys)
+                // Deduplicate by dataKey (Bar + Line share keys)
                 const byKey = new Map();
                 for (const p of payload) {
                   if ((p?.dataKey === "base" || p?.dataKey === "comp") && p.value != null) {
@@ -301,12 +307,8 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
                 }
 
                 const rows = [];
-                if (byKey.has("base")) {
-                  rows.push({ name: seriesNameBase, val: byKey.get("base"), color: "#0b3d91" });
-                }
-                if (byKey.has("comp")) {
-                  rows.push({ name: seriesNameComp, val: byKey.get("comp"), color: "#7fb3ff" });
-                }
+                if (byKey.has("base")) rows.push({ name: seriesNameBase, val: byKey.get("base"), color: "#0b3d91" });
+                if (byKey.has("comp")) rows.push({ name: seriesNameComp, val: byKey.get("comp"), color: "#7fb3ff" });
 
                 const fmt = (v) =>
                   metric === "vacancyRate" || metric === "primeYield"
@@ -344,7 +346,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   );
 }
 
-/* ===== Main App ===== */
+/* ===== Main App (first block + leasing + trend + comparison) ===== */
 export default function DataExplorerApp() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -356,6 +358,7 @@ export default function DataExplorerApp() {
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
+  // initial load
   useEffect(() => {
     setLoading(true);
     fetch("/market_data.json")
@@ -523,7 +526,7 @@ export default function DataExplorerApp() {
         {city} — {period} — {submarket || "City total"}
       </h2>
 
-      {/* ---- Market Metrics ---- */}
+      {/* ---- Market Metrics (first block kept) ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📊</span> Market Metrics
@@ -557,6 +560,17 @@ export default function DataExplorerApp() {
             })()
           )}
         />
+      </div>
+
+      {/* ---- Leasing (first block kept) ---- */}
+      <div className="section-box">
+        <div className="section-header">
+          <span>📝</span> Leasing Conditions
+        </div>
+        <Row label="Typical rent-free period (month/year)" value={fmtMoney(leasingSource?.rentFreeMonthPerYear ?? null)} />
+        <Row label="Typical lease length (months)" value={fmtNumber(leasingSource?.leaseLengthMonths ?? null)} />
+        <Row label="Fit-out (€/sqm)" value={fmtNumber(leasingSource?.fitOutEurSqmShellCore ?? null)} />
+        <Row label="Service charge (€/sqm/month)" value={fmtMoney(leasingSource?.serviceChargeEurSqmMonth ?? null)} />
       </div>
 
       {/* ---- Historical Trend ---- */}
