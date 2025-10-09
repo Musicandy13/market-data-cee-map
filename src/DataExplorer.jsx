@@ -1,3 +1,4 @@
+// src/DataExplorer.jsx
 import React, { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
@@ -15,8 +16,7 @@ import "./App.css";
 function fmtNumber(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
-  if (Math.abs(v) >= 1000)
-    return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
   return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
@@ -81,7 +81,6 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
     let val = coerceNumber(merged?.[metric]);
     if (val === null) continue;
 
-    // normalize % if stored as decimal
     if (metric === "vacancyRate" || metric === "primeYield") {
       val = Math.abs(val) <= 1 ? val * 100 : val;
     }
@@ -105,14 +104,7 @@ const SingleTooltip = ({ active, payload, label, metric }) => {
   else text = fmtNumber(val);
 
   return (
-    <div
-      style={{
-        background: "white",
-        border: "1px solid #ccc",
-        padding: "4px 8px",
-        fontSize: "12px",
-      }}
-    >
+    <div style={{ background: "white", border: "1px solid #ccc", padding: "4px 8px", fontSize: "12px" }}>
       <strong>{label}</strong>
       <div>{text}</div>
     </div>
@@ -121,8 +113,7 @@ const SingleTooltip = ({ active, payload, label, metric }) => {
 
 /* ===== Trend chart (bars + faint line) ===== */
 function BarTrendChart({ data, metric }) {
-  if (!data || data.length === 0)
-    return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
+  if (!data || data.length === 0) return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
 
   const formatValue = (v) => {
     if (metric === "vacancyRate" || metric === "primeYield") return fmtPercent(v);
@@ -141,27 +132,16 @@ function BarTrendChart({ data, metric }) {
         <XAxis dataKey="period" />
         <YAxis />
         <Tooltip content={<SingleTooltip metric={metric} />} />
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke="#999"
-          strokeDasharray="4 4"
-          dot={{ r: 3, fill: "#666" }}
-        />
+        <Line type="monotone" dataKey="value" stroke="#999" strokeDasharray="4 4" dot={{ r: 3, fill: "#666" }} />
         <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
-          <LabelList
-            dataKey="value"
-            position="top"
-            formatter={(v) => formatValue(v)}
-            style={{ fill: "#003366", fontSize: "12px" }}
-          />
+          <LabelList dataKey="value" position="top" formatter={(v) => formatValue(v)} style={{ fill: "#003366", fontSize: "12px" }} />
         </Bar>
       </ComposedChart>
     </ResponsiveContainer>
   );
 }
 
-/* ===== Independent Comparison Block (robust selectors + dual tooltip) ===== */
+/* ===== Market Comparison ===== */
 function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   const [country2, setCountry2] = useState("");
   const [city2, setCity2] = useState("");
@@ -200,9 +180,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
       setSubmarket2("");
       return;
     }
-    if (!cities.includes(city2)) {
-      setCity2(cities[0]);
-    }
+    if (!cities.includes(city2)) setCity2(cities[0]);
   }, [country2, raw]); // eslint-disable-line
 
   // When city2 changes → reset submarket2
@@ -217,9 +195,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
       if (submarket2) setSubmarket2("");
       return;
     }
-    if (!subs.includes(submarket2)) {
-      setSubmarket2(subs[0]);
-    }
+    if (!subs.includes(submarket2)) setSubmarket2(subs[0]);
   }, [country2, city2, raw]); // eslint-disable-line
 
   if (!raw?.countries) return null;
@@ -238,16 +214,9 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   let compData = buildTrendSeries(raw, country2, city2, submarket2, metric);
   if (compData.length === 0) compData = buildTrendSeries(raw, country2, city2, "", metric);
 
-  const fmt = (v) => {
-    if (metric === "vacancyRate" || metric === "primeYield") return fmtPercent(v);
-    if (
-      metric === "primeRentEurSqmMonth" ||
-      metric === "averageRentEurSqmMonth" ||
-      metric === "serviceChargeEurSqmMonth"
-    )
-      return fmtMoney(v);
-    return fmtNumber(v);
-  };
+  // For stacked tooltip labels
+  const seriesNameBase = baseCity + (baseSubmarket ? " — " + baseSubmarket : "");
+  const seriesNameComp = city2 + (submarket2 ? " — " + submarket2 : "");
 
   const allPeriods = Array.from(
     new Set([...baseData.map((d) => d.period), ...compData.map((d) => d.period)])
@@ -265,9 +234,8 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   }));
 
   return (
-    <div className="section-header section-header--orange">
-  Market Comparison
-</div>
+    <div className="section-box" style={{ marginTop: "30px" }}>
+      <div className="section-header section-header--orange">Market Comparison</div>
 
       <div style={{ padding: "10px" }}>
         <div
@@ -329,53 +297,60 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
             <Tooltip
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
-                const pairs = payload
-                  .filter((p) => p?.dataKey === "base" || p?.dataKey === "comp")
-                  .map((p) => ({
-                    name: p.dataKey === "base" ? baseCity : city2,
-                    val: p.value,
-                    color: p.dataKey === "base" ? "#004488" : "#e67e22",
-                  }));
+
+                // Deduplicate by dataKey (since both Line and Bar use the same keys)
+                const byKey = new Map();
+                for (const p of payload) {
+                  if ((p?.dataKey === "base" || p?.dataKey === "comp") && p.value != null) {
+                    if (!byKey.has(p.dataKey)) byKey.set(p.dataKey, p.value);
+                  }
+                }
+
+                const rows = [];
+                if (byKey.has("base")) {
+                  rows.push({
+                    name: seriesNameBase,
+                    val: byKey.get("base"),
+                    color: "#0b3d91", // deep blue
+                  });
+                }
+                if (byKey.has("comp")) {
+                  rows.push({
+                    name: seriesNameComp,
+                    val: byKey.get("comp"),
+                    color: "#7fb3ff", // light blue
+                  });
+                }
+
+                const fmt = (v) =>
+                  metric === "vacancyRate" || metric === "primeYield"
+                    ? fmtPercent(v)
+                    : metric === "primeRentEurSqmMonth" ||
+                      metric === "averageRentEurSqmMonth" ||
+                      metric === "serviceChargeEurSqmMonth"
+                    ? fmtMoney(v)
+                    : fmtNumber(v);
+
                 return (
-                  <div
-                    style={{
-                      background: "white",
-                      border: "1px solid #ccc",
-                      padding: "6px 8px",
-                      fontSize: "12px",
-                    }}
-                  >
+                  <div style={{ background: "white", border: "1px solid #ccc", padding: "6px 8px", fontSize: "12px" }}>
                     <strong style={{ display: "block", marginBottom: 4 }}>{label}</strong>
-                    {pairs.map((x) => (
+                    {rows.map((x) => (
                       <div key={x.name} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            width: 10,
-                            height: 10,
-                            background: x.color,
-                          }}
-                        />
-                        <span style={{ minWidth: 80 }}>{x.name}:</span>
-                        <span>
-                          {metric === "vacancyRate" || metric === "primeYield"
-                            ? fmtPercent(x.val)
-                            : metric === "primeRentEurSqmMonth" ||
-                              metric === "averageRentEurSqmMonth" ||
-                              metric === "serviceChargeEurSqmMonth"
-                            ? fmtMoney(x.val)
-                            : fmtNumber(x.val)}
-                        </span>
+                        <span style={{ display: "inline-block", width: 10, height: 10, background: x.color }} />
+                        <span style={{ minWidth: 140 }}>{x.name}:</span>
+                        <span>{fmt(x.val)}</span>
                       </div>
                     ))}
                   </div>
                 );
               }}
             />
-            <Line type="monotone" dataKey="base" stroke="#004488" dot={false} />
+            {/* Base: deep blue line + bar */}
+            <Line type="monotone" dataKey="base" stroke="#0b3d91" dot={false} />
+            <Bar dataKey="base" fill="#0b3d91" barSize={20} />
+            {/* Comparison: orange line + light-blue bar */}
             <Line type="monotone" dataKey="comp" stroke="#e67e22" dot={false} />
-            <Bar dataKey="base" fill="#003366" barSize={20} />
-            <Bar dataKey="comp" fill="#e67e22" barSize={20} />
+            <Bar dataKey="comp" fill="#7fb3ff" barSize={20} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -395,7 +370,6 @@ export default function DataExplorerApp() {
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
-  // initial load
   useEffect(() => {
     setLoading(true);
     fetch("/market_data.json")
@@ -413,13 +387,10 @@ export default function DataExplorerApp() {
         const firstCountry = countries[0];
         const cities = Object.keys(json?.countries?.[firstCountry]?.cities || {});
         const firstCity = cities[0] || "";
-        const periods = Object.keys(
-          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {}
-        );
+        const periods = Object.keys(json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {});
         const firstPeriod = periods[0] || "";
         const subs = Object.keys(
-          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets ||
-            {}
+          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets || {}
         );
 
         setCountry(firstCountry);
@@ -436,9 +407,7 @@ export default function DataExplorerApp() {
 
   const countries = Object.keys(raw?.countries || {});
   const cities = country ? Object.keys(raw?.countries?.[country]?.cities || {}) : [];
-  const periods = city
-    ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {})
-    : [];
+  const periods = city ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {}) : [];
 
   // keep selections valid when parents change
   useEffect(() => {
@@ -448,32 +417,21 @@ export default function DataExplorerApp() {
 
   useEffect(() => {
     const cityList = Object.keys(raw?.countries?.[country]?.cities || []);
-    if (city && !cityList.includes(city)) {
-      setCity(cityList[0] || "");
-    }
+    if (city && !cityList.includes(city)) setCity(cityList[0] || "");
   }, [country, raw]); // eslint-disable-line
 
   useEffect(() => {
     const periodList = Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || []);
-    if (period && !periodList.includes(period)) {
-      setPeriod(periodList[0] || "");
-    }
+    if (period && !periodList.includes(period)) setPeriod(periodList[0] || "");
     const firstPeriod = periodList[0] || "";
     const subs = Object.keys(
       raw?.countries?.[country]?.cities?.[city]?.periods?.[firstPeriod]?.subMarkets || {}
     );
-    if (submarket && subs.length && !subs.includes(submarket)) {
-      setSubmarket(subs[0]);
-    }
+    if (submarket && subs.length && !subs.includes(submarket)) setSubmarket(subs[0]);
   }, [country, city, raw]); // eslint-disable-line
 
-  const selectedPeriodObj =
-    raw?.countries?.[country]?.cities?.[city]?.periods?.[period] || null;
-
-  const submarketsFromJson = selectedPeriodObj?.subMarkets
-    ? Object.keys(selectedPeriodObj.subMarkets)
-    : [];
-
+  const selectedPeriodObj = raw?.countries?.[country]?.cities?.[city]?.periods?.[period] || null;
+  const submarketsFromJson = selectedPeriodObj?.subMarkets ? Object.keys(selectedPeriodObj.subMarkets) : [];
   const cityObj = raw?.countries?.[country]?.cities?.[city] || {};
   const leasingCity = cityObj?.leasing || {};
 
@@ -491,41 +449,23 @@ export default function DataExplorerApp() {
   const g = (key) => {
     if (!metricSource) return null;
     switch (key) {
-      case "totalStock":
-        return metricSource.totalStock ?? null;
-      case "vacancy":
-        return metricSource.vacancy ?? null;
-      case "vacancyRate":
-        return metricSource.vacancyRate ?? null;
-      case "takeUp":
-        return metricSource.takeUp ?? null;
-      case "netAbsorption":
-        return metricSource.netAbsorption ?? null;
-      case "completionsYTD":
-        return metricSource.completionsYTD ?? null;
-      case "underConstruction":
-        return metricSource.underConstruction ?? null;
-      case "primeRentEurSqmMonth":
-        return metricSource.primeRentEurSqmMonth ?? null;
-      case "averageRentEurSqmMonth":
-        return metricSource.averageRentEurSqmMonth ?? null;
-      case "primeYield":
-        return metricSource.primeYield ?? null;
-      default:
-        return metricSource[key] ?? null;
+      case "totalStock": return metricSource.totalStock ?? null;
+      case "vacancy": return metricSource.vacancy ?? null;
+      case "vacancyRate": return metricSource.vacancyRate ?? null;
+      case "takeUp": return metricSource.takeUp ?? null;
+      case "netAbsorption": return metricSource.netAbsorption ?? null;
+      case "completionsYTD": return metricSource.completionsYTD ?? null;
+      case "underConstruction": return metricSource.underConstruction ?? null;
+      case "primeRentEurSqmMonth": return metricSource.primeRentEurSqmMonth ?? null;
+      case "averageRentEurSqmMonth": return metricSource.averageRentEurSqmMonth ?? null;
+      case "primeYield": return metricSource.primeYield ?? null;
+      default: return metricSource[key] ?? null;
     }
   };
 
-  if (loading) {
-    return <div style={{ padding: 30 }}>Loading…</div>;
-  }
-  if (errorLoading) {
-    return (
-      <div style={{ padding: 30, color: "crimson" }}>
-        Error loading data: {errorLoading}
-      </div>
-    );
-  }
+  if (loading) return <div style={{ padding: 30 }}>Loading…</div>;
+  if (errorLoading)
+    return <div style={{ padding: 30, color: "crimson" }}>Error loading data: {errorLoading}</div>;
 
   return (
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
@@ -540,9 +480,7 @@ export default function DataExplorerApp() {
             const nextCities = Object.keys(raw?.countries?.[c]?.cities || {});
             const nextCity = nextCities[0] || "";
             setCity(nextCity);
-            const nextPeriods = Object.keys(
-              raw?.countries?.[c]?.cities?.[nextCity]?.periods || {}
-            );
+            const nextPeriods = Object.keys(raw?.countries?.[c]?.cities?.[nextCity]?.periods || {});
             const nextPeriod = nextPeriods[0] || "";
             setPeriod(nextPeriod);
             const nextSubs = Object.keys(
@@ -563,9 +501,7 @@ export default function DataExplorerApp() {
           onChange={(e) => {
             const cityVal = e.target.value;
             setCity(cityVal);
-            const nextPeriods = Object.keys(
-              raw?.countries?.[country]?.cities?.[cityVal]?.periods || {}
-            );
+            const nextPeriods = Object.keys(raw?.countries?.[country]?.cities?.[cityVal]?.periods || {});
             const nextPeriod = nextPeriods[0] || "";
             setPeriod(nextPeriod);
             const nextSubs = Object.keys(
@@ -624,14 +560,8 @@ export default function DataExplorerApp() {
         <Row label="Net Absorption (sqm, YTD)" value={fmtNumber(g("netAbsorption"))} />
         <Row label="Completed (sqm, YTD)" value={fmtNumber(g("completionsYTD"))} />
         <Row label="Under Construction (sqm)" value={fmtNumber(g("underConstruction"))} />
-        <Row
-          label="Prime Rent (€/sqm/month)"
-          value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))}
-        />
-        <Row
-          label="Average Rent (€/sqm/month)"
-          value={fmtMoney(coerceNumber(g("averageRentEurSqmMonth")))}
-        />
+        <Row label="Prime Rent (€/sqm/month)" value={fmtMoney(coerceNumber(g("primeRentEurSqmMonth")))} />
+        <Row label="Average Rent (€/sqm/month)" value={fmtMoney(coerceNumber(g("averageRentEurSqmMonth")))} />
         <Row
           label="Prime Yield (%)"
           value={fmtPercent(
@@ -649,19 +579,10 @@ export default function DataExplorerApp() {
         <div className="section-header">
           <span>📝</span> Leasing Conditions
         </div>
-        <Row
-          label="Typical rent-free period (month/year)"
-          value={fmtMoney(leasingSource?.rentFreeMonthPerYear ?? null)}
-        />
-        <Row
-          label="Typical lease length (months)"
-          value={fmtNumber(leasingSource?.leaseLengthMonths ?? null)}
-        />
+        <Row label="Typical rent-free period (month/year)" value={fmtMoney(leasingSource?.rentFreeMonthPerYear ?? null)} />
+        <Row label="Typical lease length (months)" value={fmtNumber(leasingSource?.leaseLengthMonths ?? null)} />
         <Row label="Fit-out (€/sqm)" value={fmtNumber(leasingSource?.fitOutEurSqmShellCore ?? null)} />
-        <Row
-          label="Service charge (€/sqm/month)"
-          value={fmtMoney(leasingSource?.serviceChargeEurSqmMonth ?? null)}
-        />
+        <Row label="Service charge (€/sqm/month)" value={fmtMoney(leasingSource?.serviceChargeEurSqmMonth ?? null)} />
       </div>
 
       {/* ---- Historical Trend ---- */}
@@ -698,13 +619,8 @@ export default function DataExplorerApp() {
         </div>
       </div>
 
-      {/* ---- Independent Comparison ---- */}
-      <ComparisonBlock
-        raw={raw}
-        baseCountry={country}
-        baseCity={city}
-        baseSubmarket={submarket}
-      />
+      {/* ---- Market Comparison ---- */}
+      <ComparisonBlock raw={raw} baseCountry={country} baseCity={city} baseSubmarket={submarket} />
     </div>
   );
 }
