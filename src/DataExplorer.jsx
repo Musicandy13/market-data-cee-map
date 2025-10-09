@@ -19,17 +19,20 @@ function fmtNumber(n) {
   if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
   return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+
 function fmtMoney(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
   return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
 function fmtPercent(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
   if (Math.abs(v) <= 1) return (v * 100).toFixed(2) + "%";
   return v.toFixed(2) + "%";
 }
+
 function coerceNumber(v) {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return v;
@@ -42,7 +45,7 @@ function coerceNumber(v) {
   return Number.isNaN(num) ? null : num;
 }
 
-// 🆕 New helper: display ranges like “150 - 200” in Leasing Conditions
+// 🆕 helper to display ranges like “150 - 200”
 function formatMaybeRange(v, kind = "number") {
   if (v === null || v === undefined || v === "") return "–";
   if (typeof v === "number") return kind === "money" ? fmtMoney(v) : fmtNumber(v);
@@ -75,22 +78,21 @@ function Row({ label, value }) {
   );
 }
 
-/* ===== Quarter sorting helper ===== */
-const sortPeriodsAsc = (a, b) => {
-  const [qa, ya] = a.split(" ");
-  const [qb, yb] = b.split(" ");
-  if (ya !== yb) return Number(ya) - Number(yb);
-  return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
-};
-
-/* ===== Build historical series (chronological for charts) ===== */
+/* ===== Build historical series ===== */
 function buildTrendSeries(raw, country, city, submarket, metric) {
   const cityNode = raw?.countries?.[country]?.cities?.[city];
   if (!cityNode?.periods) return [];
   const periods = Object.keys(cityNode.periods);
 
+  const sortPeriods = (a, b) => {
+    const [qa, ya] = a.split(" ");
+    const [qb, yb] = b.split(" ");
+    if (ya !== yb) return Number(ya) - Number(yb);
+    return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
+  };
+
   const out = [];
-  for (const p of periods.sort(sortPeriodsAsc)) {
+  for (const p of periods.sort(sortPeriods)) {
     const cityData = cityNode.periods?.[p];
     if (!cityData) continue;
 
@@ -156,12 +158,7 @@ function BarTrendChart({ data, metric }) {
         <Tooltip content={<SingleTooltip metric={metric} />} />
         <Line type="monotone" dataKey="value" stroke="#999" strokeDasharray="4 4" dot={{ r: 3, fill: "#666" }} />
         <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
-          <LabelList
-            dataKey="value"
-            position="top"
-            formatter={(v) => formatValue(v)}
-            style={{ fill: "#003366", fontSize: "12px" }}
-          />
+          <LabelList dataKey="value" position="top" formatter={(v) => formatValue(v)} style={{ fill: "#003366", fontSize: "12px" }} />
         </Bar>
       </ComposedChart>
     </ResponsiveContainer>
@@ -169,13 +166,204 @@ function BarTrendChart({ data, metric }) {
 }
 
 /* ===== Market Comparison ===== */
-// (UNCHANGED — your entire block remains exactly as before)
 function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
-  // ... full comparison block identical to your previous version ...
-  // no edits here
+  const [country2, setCountry2] = useState("");
+  const [city2, setCity2] = useState("");
+  const [submarket2, setSubmarket2] = useState("");
+  const [metric, setMetric] = useState("primeRentEurSqmMonth");
+
+  useEffect(() => {
+    if (!raw?.countries) return;
+    const cList = Object.keys(raw.countries);
+    if (!cList.length) return;
+
+    const firstC = cList[0];
+    const cities = Object.keys(raw.countries[firstC]?.cities || {});
+    const firstCity = cities[0] || "";
+    const periods = Object.keys(raw.countries[firstC]?.cities?.[firstCity]?.periods || {});
+    const firstPeriod = periods[0] || "";
+    const subs =
+      (firstPeriod &&
+        Object.keys(
+          raw.countries[firstC]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets || {}
+        )) ||
+      [];
+
+    setCountry2((prev) => prev || firstC);
+    setCity2((prev) => prev || firstCity);
+    setSubmarket2((prev) => prev || subs[0] || "");
+  }, [raw]);
+
+  useEffect(() => {
+    if (!country2) return;
+    const cities = Object.keys(raw?.countries?.[country2]?.cities || {});
+    if (!cities.length) {
+      setCity2("");
+      setSubmarket2("");
+      return;
+    }
+    if (!cities.includes(city2)) setCity2(cities[0]);
+  }, [country2, raw]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!country2 || !city2) return;
+    const periods = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {});
+    const firstPeriod = periods[0] || "";
+    const subs = Object.keys(
+      raw?.countries?.[country2]?.cities?.[city2]?.periods?.[firstPeriod]?.subMarkets || {}
+    );
+    if (!subs.length) {
+      if (submarket2) setSubmarket2("");
+      return;
+    }
+    if (!subs.includes(submarket2)) setSubmarket2(subs[0]);
+  }, [country2, city2, raw]); // eslint-disable-line
+
+  if (!raw?.countries) return null;
+
+  const countries = Object.keys(raw.countries);
+  const cities2 = country2 ? Object.keys(raw?.countries?.[country2]?.cities || {}) : [];
+  const submarkets2 = (() => {
+    const firstPeriodKey = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {})[0];
+    if (!firstPeriodKey) return [];
+    return Object.keys(
+      raw?.countries?.[country2]?.cities?.[city2]?.periods?.[firstPeriodKey]?.subMarkets || {}
+    );
+  })();
+
+  const baseData = buildTrendSeries(raw, baseCountry, baseCity, baseSubmarket, metric);
+  let compData = buildTrendSeries(raw, country2, city2, submarket2, metric);
+  if (compData.length === 0) compData = buildTrendSeries(raw, country2, city2, "", metric);
+
+  const seriesNameBase = baseCity + (baseSubmarket ? " — " + baseSubmarket : "");
+  const seriesNameComp = city2 + (submarket2 ? " — " + submarket2 : "");
+
+  const allPeriods = Array.from(
+    new Set([...baseData.map((d) => d.period), ...compData.map((d) => d.period)])
+  ).sort((a, b) => {
+    const [qa, ya] = a.split(" ");
+    const [qb, yb] = b.split(" ");
+    if (ya !== yb) return Number(ya) - Number(yb);
+    return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
+  });
+
+  const merged = allPeriods.map((p) => ({
+    period: p,
+    base: baseData.find((d) => d.period === p)?.value ?? null,
+    comp: compData.find((d) => d.period === p)?.value ?? null,
+  }));
+
+  return (
+    <div className="section-box section-box--orange" style={{ marginTop: "30px" }}>
+      <div className="section-header section-header--orange">Market Comparison</div>
+
+      <div style={{ padding: "10px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "6px",
+            marginBottom: "10px",
+          }}
+        >
+          <select value={country2} onChange={(e) => setCountry2(e.target.value)}>
+            {countries.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+
+          <select value={city2} onChange={(e) => setCity2(e.target.value)}>
+            {cities2.map((ct) => (
+              <option key={ct} value={ct}>
+                {ct}
+              </option>
+            ))}
+          </select>
+
+          {submarkets2.length > 0 && (
+            <select value={submarket2} onChange={(e) => setSubmarket2(e.target.value)}>
+              {submarkets2.map((sm) => (
+                <option key={sm} value={sm}>
+                  {sm}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <select value={metric} onChange={(e) => setMetric(e.target.value)}>
+            {[
+              { key: "totalStock", label: "Total Stock (sqm)" },
+              { key: "vacancy", label: "Vacancy (sqm)" },
+              { key: "vacancyRate", label: "Vacancy Rate (%)" },
+              { key: "primeRentEurSqmMonth", label: "Prime Rent (€/sqm/month)" },
+              { key: "averageRentEurSqmMonth", label: "Average Rent (€/sqm/month)" },
+              { key: "primeYield", label: "Prime Yield (%)" },
+              { key: "fitOutEurSqmShellCore", label: "Fit-out (€/sqm)" },
+              { key: "serviceChargeEurSqmMonth", label: "Service charge (€/sqm/month)" },
+            ].map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={merged} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+            <XAxis dataKey="period" />
+            <YAxis />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+
+                const byKey = new Map();
+                for (const p of payload) {
+                  if ((p?.dataKey === "base" || p?.dataKey === "comp") && p.value != null) {
+                    if (!byKey.has(p.dataKey)) byKey.set(p.dataKey, p.value);
+                  }
+                }
+
+                const rows = [];
+                if (byKey.has("base")) rows.push({ name: seriesNameBase, val: byKey.get("base"), color: "#0b3d91" });
+                if (byKey.has("comp")) rows.push({ name: seriesNameComp, val: byKey.get("comp"), color: "#7fb3ff" });
+
+                const fmt = (v) =>
+                  metric === "vacancyRate" || metric === "primeYield"
+                    ? fmtPercent(v)
+                    : metric === "primeRentEurSqmMonth" ||
+                      metric === "averageRentEurSqmMonth" ||
+                      metric === "serviceChargeEurSqmMonth"
+                    ? fmtMoney(v)
+                    : fmtNumber(v);
+
+                return (
+                  <div style={{ background: "white", border: "1px solid #ccc", padding: "6px 8px", fontSize: "12px" }}>
+                    <strong style={{ display: "block", marginBottom: 4 }}>{label}</strong>
+                    {rows.map((x) => (
+                      <div key={x.name} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <span style={{ display: "inline-block", width: 10, height: 10, background: x.color }} />
+                        <span style={{ minWidth: 140 }}>{x.name}:</span>
+                        <span>{fmt(x.val)}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }}
+            />
+            <Line type="monotone" dataKey="base" stroke="#0b3d91" dot={false} />
+            <Bar dataKey="base" fill="#0b3d91" barSize={20} />
+            <Line type="monotone" dataKey="comp" stroke="#e67e22" dot={false} />
+            <Bar dataKey="comp" fill="#7fb3ff" barSize={20} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
 }
 
-/* ===== Main App (first block + leasing + trend + comparison) ===== */
+/* ===== Main App (selectors + metrics + leasing + trend + comparison) ===== */
 export default function DataExplorerApp() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -187,7 +375,7 @@ export default function DataExplorerApp() {
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
-  // initial load → default to LATEST period
+  // initial load
   useEffect(() => {
     setLoading(true);
     fetch("/market_data.json")
@@ -205,17 +393,15 @@ export default function DataExplorerApp() {
         const firstCountry = countries[0];
         const cities = Object.keys(json?.countries?.[firstCountry]?.cities || {});
         const firstCity = cities[0] || "";
-        const periodsAsc = Object.keys(json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {}).sort(
-          sortPeriodsAsc
-        );
-        const latestPeriod = periodsAsc[periodsAsc.length - 1] || "";
+        const periods = Object.keys(json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {});
+        const firstPeriod = periods[0] || "";
         const subs = Object.keys(
-          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[latestPeriod]?.subMarkets || {}
+          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets || {}
         );
 
         setCountry(firstCountry);
         setCity(firstCity);
-        setPeriod(latestPeriod);
+        setPeriod(firstPeriod);
         setSubmarket(subs[0] || "");
         setLoading(false);
       })
@@ -227,13 +413,10 @@ export default function DataExplorerApp() {
 
   const countries = Object.keys(raw?.countries || {});
   const cities = country ? Object.keys(raw?.countries?.[country]?.cities || {}) : [];
-
-  const periodsAsc = city
-    ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {}).sort(sortPeriodsAsc)
-    : [];
+  const periodsAsc = city ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {}) : [];
   const periodsDesc = [...periodsAsc].reverse();
 
-  const selectedPeriodObj = raw?.countries?.[country]?.cities?.[city]?.periods?.[period] || null;
+  const selectedPeriodObj = raw?.countries?.[country]?.cities?.[city]?.periods?.[period] || {};
   const submarketsFromJson = selectedPeriodObj?.subMarkets ? Object.keys(selectedPeriodObj.subMarkets) : [];
   const cityObj = raw?.countries?.[country]?.cities?.[city] || {};
   const leasingCity = cityObj?.leasing || {};
@@ -273,8 +456,69 @@ export default function DataExplorerApp() {
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
       <h1>{city || "Market"} Office Market</h1>
 
-      {/* ---- Selectors remain identical ---- */}
-      {/* ... country/city/submarket/period selectors ... */}
+      {/* ====== INPUT BLOCK ====== */}
+      <div>
+        <select
+          value={country}
+          onChange={(e) => {
+            const c = e.target.value;
+            setCountry(c);
+            const nextCities = Object.keys(raw?.countries?.[c]?.cities || {});
+            const nextCity = nextCities[0] || "";
+            setCity(nextCity);
+            const nextPeriods = Object.keys(raw?.countries?.[c]?.cities?.[nextCity]?.periods || {});
+            const nextLatest = nextPeriods[nextPeriods.length - 1] || "";
+            setPeriod(nextLatest);
+            const nextSubs = Object.keys(
+              raw?.countries?.[c]?.cities?.[nextCity]?.periods?.[nextLatest]?.subMarkets || {}
+            );
+            setSubmarket(nextSubs[0] || "");
+          }}
+        >
+          {countries.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={city}
+          onChange={(e) => {
+            const cityVal = e.target.value;
+            setCity(cityVal);
+            const nextPeriods = Object.keys(raw?.countries?.[country]?.cities?.[cityVal]?.periods || {});
+            const nextLatest = nextPeriods[nextPeriods.length - 1] || "";
+            setPeriod(nextLatest);
+            const nextSubs = Object.keys(
+              raw?.countries?.[country]?.cities?.[cityVal]?.periods?.[nextLatest]?.subMarkets || {}
+            );
+            setSubmarket(nextSubs[0] || "");
+          }}
+        >
+          {cities.map((ct) => (
+            <option key={ct} value={ct}>
+              {ct}
+            </option>
+          ))}
+        </select>
+
+        <select value={submarket} onChange={(e) => setSubmarket(e.target.value)}>
+          {submarketsFromJson.map((sm) => (
+            <option key={sm} value={sm}>
+              {sm}
+            </option>
+          ))}
+        </select>
+
+        <select value={period} onChange={(e) => setPeriod(e.target.value)}>
+          {periodsDesc.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <h2>
         {city} — {period} — {submarket || "City total"}
@@ -316,7 +560,7 @@ export default function DataExplorerApp() {
         />
       </div>
 
-      {/* ---- 🆕 Leasing Conditions with range support ---- */}
+      {/* ---- Leasing ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📝</span> Leasing Conditions
