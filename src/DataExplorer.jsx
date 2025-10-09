@@ -12,27 +12,24 @@ import {
 } from "recharts";
 import "./App.css";
 
-/* ===== Helpers (keep first-block semantics) ===== */
+/* ===== Helpers ===== */
 function fmtNumber(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
   if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
   return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
-
 function fmtMoney(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
   return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
 function fmtPercent(n) {
   if (n === null || n === undefined || n === "" || Number.isNaN(n)) return "–";
   const v = Number(n);
   if (Math.abs(v) <= 1) return (v * 100).toFixed(2) + "%";
   return v.toFixed(2) + "%";
 }
-
 function coerceNumber(v) {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return v;
@@ -44,7 +41,6 @@ function coerceNumber(v) {
   const num = parseFloat(s);
   return Number.isNaN(num) ? null : num;
 }
-
 function Row({ label, value }) {
   return (
     <div className="row">
@@ -54,21 +50,22 @@ function Row({ label, value }) {
   );
 }
 
-/* ===== Build historical series (safe reads) ===== */
+/* ===== Quarter sorting helper ===== */
+const sortPeriodsAsc = (a, b) => {
+  const [qa, ya] = a.split(" ");
+  const [qb, yb] = b.split(" ");
+  if (ya !== yb) return Number(ya) - Number(yb);
+  return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
+};
+
+/* ===== Build historical series (chronological for charts) ===== */
 function buildTrendSeries(raw, country, city, submarket, metric) {
   const cityNode = raw?.countries?.[country]?.cities?.[city];
   if (!cityNode?.periods) return [];
   const periods = Object.keys(cityNode.periods);
 
-  const sortPeriods = (a, b) => {
-    const [qa, ya] = a.split(" ");
-    const [qb, yb] = b.split(" ");
-    if (ya !== yb) return Number(ya) - Number(yb);
-    return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
-  };
-
   const out = [];
-  for (const p of periods.sort(sortPeriods)) {
+  for (const p of periods.sort(sortPeriodsAsc)) {
     const cityData = cityNode.periods?.[p];
     if (!cityData) continue;
 
@@ -89,7 +86,7 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
   return out;
 }
 
-/* ===== Clean single-series tooltip for Trend chart ===== */
+/* ===== Tooltip for Trend chart ===== */
 const SingleTooltip = ({ active, payload, label, metric }) => {
   if (!active || !payload || !payload.length) return null;
   const val = payload[0]?.value;
@@ -111,7 +108,7 @@ const SingleTooltip = ({ active, payload, label, metric }) => {
   );
 };
 
-/* ===== Trend chart (bars + faint line) ===== */
+/* ===== Trend chart ===== */
 function BarTrendChart({ data, metric }) {
   if (!data || data.length === 0) return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
 
@@ -134,7 +131,12 @@ function BarTrendChart({ data, metric }) {
         <Tooltip content={<SingleTooltip metric={metric} />} />
         <Line type="monotone" dataKey="value" stroke="#999" strokeDasharray="4 4" dot={{ r: 3, fill: "#666" }} />
         <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
-          <LabelList dataKey="value" position="top" formatter={(v) => formatValue(v)} style={{ fill: "#003366", fontSize: "12px" }} />
+          <LabelList
+            dataKey="value"
+            position="top"
+            formatter={(v) => formatValue(v)}
+            style={{ fill: "#003366", fontSize: "12px" }}
+          />
         </Bar>
       </ComposedChart>
     </ResponsiveContainer>
@@ -148,7 +150,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   const [submarket2, setSubmarket2] = useState("");
   const [metric, setMetric] = useState("primeRentEurSqmMonth");
 
-  // Initialize comparison with the first available triplet from JSON
+  // Initialize comparison
   useEffect(() => {
     if (!raw?.countries) return;
     const cList = Object.keys(raw.countries);
@@ -157,7 +159,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
     const firstC = cList[0];
     const cities = Object.keys(raw.countries[firstC]?.cities || {});
     const firstCity = cities[0] || "";
-    const periods = Object.keys(raw.countries[firstC]?.cities?.[firstCity]?.periods || {});
+    const periods = Object.keys(raw.countries[firstC]?.cities?.[firstCity]?.periods || {}).sort(sortPeriodsAsc);
     const firstPeriod = periods[0] || "";
     const subs =
       (firstPeriod &&
@@ -171,7 +173,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
     setSubmarket2((prev) => prev || subs[0] || "");
   }, [raw]);
 
-  // When country2 changes → reset city2 & submarket2 sensibly
+  // When country2 changes → reset city2
   useEffect(() => {
     if (!country2) return;
     const cities = Object.keys(raw?.countries?.[country2]?.cities || {});
@@ -186,7 +188,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   // When city2 changes → reset submarket2
   useEffect(() => {
     if (!country2 || !city2) return;
-    const periods = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {});
+    const periods = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {}).sort(sortPeriodsAsc);
     const firstPeriod = periods[0] || "";
     const subs = Object.keys(
       raw?.countries?.[country2]?.cities?.[city2]?.periods?.[firstPeriod]?.subMarkets || {}
@@ -203,7 +205,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   const countries = Object.keys(raw.countries);
   const cities2 = country2 ? Object.keys(raw?.countries?.[country2]?.cities || {}) : [];
   const submarkets2 = (() => {
-    const firstPeriodKey = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {})[0];
+    const firstPeriodKey = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {}).sort(sortPeriodsAsc)[0];
     if (!firstPeriodKey) return [];
     return Object.keys(
       raw?.countries?.[country2]?.cities?.[city2]?.periods?.[firstPeriodKey]?.subMarkets || {}
@@ -214,18 +216,12 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   let compData = buildTrendSeries(raw, country2, city2, submarket2, metric);
   if (compData.length === 0) compData = buildTrendSeries(raw, country2, city2, "", metric);
 
-  // For tooltip labels
   const seriesNameBase = baseCity + (baseSubmarket ? " — " + baseSubmarket : "");
   const seriesNameComp = city2 + (submarket2 ? " — " + submarket2 : "");
 
   const allPeriods = Array.from(
     new Set([...baseData.map((d) => d.period), ...compData.map((d) => d.period)])
-  ).sort((a, b) => {
-    const [qa, ya] = a.split(" ");
-    const [qb, yb] = b.split(" ");
-    if (ya !== yb) return Number(ya) - Number(yb);
-    return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
-  });
+  ).sort(sortPeriodsAsc);
 
   const merged = allPeriods.map((p) => ({
     period: p,
@@ -358,7 +354,7 @@ export default function DataExplorerApp() {
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
-  // initial load
+  // initial load → default to LATEST period
   useEffect(() => {
     setLoading(true);
     fetch("/market_data.json")
@@ -376,15 +372,17 @@ export default function DataExplorerApp() {
         const firstCountry = countries[0];
         const cities = Object.keys(json?.countries?.[firstCountry]?.cities || {});
         const firstCity = cities[0] || "";
-        const periods = Object.keys(json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {});
-        const firstPeriod = periods[0] || "";
+        const periodsAsc = Object.keys(json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {}).sort(
+          sortPeriodsAsc
+        );
+        const latestPeriod = periodsAsc[periodsAsc.length - 1] || "";
         const subs = Object.keys(
-          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets || {}
+          json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[latestPeriod]?.subMarkets || {}
         );
 
         setCountry(firstCountry);
         setCity(firstCity);
-        setPeriod(firstPeriod);
+        setPeriod(latestPeriod);
         setSubmarket(subs[0] || "");
         setLoading(false);
       })
@@ -396,9 +394,14 @@ export default function DataExplorerApp() {
 
   const countries = Object.keys(raw?.countries || {});
   const cities = country ? Object.keys(raw?.countries?.[country]?.cities || {}) : [];
-  const periods = city ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {}) : [];
 
-  // keep selections valid when parents change
+  // Build sorted period lists for the FIRST BLOCK
+  const periodsAsc = city
+    ? Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {}).sort(sortPeriodsAsc)
+    : [];
+  const periodsDesc = [...periodsAsc].reverse(); // newest → oldest
+
+  // keep selections valid when parents change (default to latest)
   useEffect(() => {
     if (!raw) return;
     if (!countries.includes(country) && countries.length) setCountry(countries[0]);
@@ -410,11 +413,13 @@ export default function DataExplorerApp() {
   }, [country, raw]); // eslint-disable-line
 
   useEffect(() => {
-    const periodList = Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || []);
-    if (period && !periodList.includes(period)) setPeriod(periodList[0] || "");
-    const firstPeriod = periodList[0] || "";
+    const periodListAsc = Object.keys(raw?.countries?.[country]?.cities?.[city]?.periods || {}).sort(sortPeriodsAsc);
+    if (period && !periodListAsc.includes(period)) {
+      setPeriod(periodListAsc[periodListAsc.length - 1] || ""); // latest
+    }
+    const latest = periodListAsc[periodListAsc.length - 1] || "";
     const subs = Object.keys(
-      raw?.countries?.[country]?.cities?.[city]?.periods?.[firstPeriod]?.subMarkets || {}
+      raw?.countries?.[country]?.cities?.[city]?.periods?.[latest]?.subMarkets || {}
     );
     if (submarket && subs.length && !subs.includes(submarket)) setSubmarket(subs[0]);
   }, [country, city, raw]); // eslint-disable-line
@@ -468,11 +473,13 @@ export default function DataExplorerApp() {
             const nextCities = Object.keys(raw?.countries?.[c]?.cities || {});
             const nextCity = nextCities[0] || "";
             setCity(nextCity);
-            const nextPeriods = Object.keys(raw?.countries?.[c]?.cities?.[nextCity]?.periods || {});
-            const nextPeriod = nextPeriods[0] || "";
-            setPeriod(nextPeriod);
+            const nextPeriodsAsc = Object.keys(raw?.countries?.[c]?.cities?.[nextCity]?.periods || {}).sort(
+              sortPeriodsAsc
+            );
+            const nextLatest = nextPeriodsAsc[nextPeriodsAsc.length - 1] || "";
+            setPeriod(nextLatest);
             const nextSubs = Object.keys(
-              raw?.countries?.[c]?.cities?.[nextCity]?.periods?.[nextPeriod]?.subMarkets || {}
+              raw?.countries?.[c]?.cities?.[nextCity]?.periods?.[nextLatest]?.subMarkets || {}
             );
             setSubmarket(nextSubs[0] || "");
           }}
@@ -489,11 +496,13 @@ export default function DataExplorerApp() {
           onChange={(e) => {
             const cityVal = e.target.value;
             setCity(cityVal);
-            const nextPeriods = Object.keys(raw?.countries?.[country]?.cities?.[cityVal]?.periods || {});
-            const nextPeriod = nextPeriods[0] || "";
-            setPeriod(nextPeriod);
+            const nextPeriodsAsc = Object.keys(raw?.countries?.[country]?.cities?.[cityVal]?.periods || {}).sort(
+              sortPeriodsAsc
+            );
+            const nextLatest = nextPeriodsAsc[nextPeriodsAsc.length - 1] || "";
+            setPeriod(nextLatest);
             const nextSubs = Object.keys(
-              raw?.countries?.[country]?.cities?.[cityVal]?.periods?.[nextPeriod]?.subMarkets || {}
+              raw?.countries?.[country]?.cities?.[cityVal]?.periods?.[nextLatest]?.subMarkets || {}
             );
             setSubmarket(nextSubs[0] || "");
           }}
@@ -513,8 +522,9 @@ export default function DataExplorerApp() {
           ))}
         </select>
 
+        {/* Periods NEWEST → OLDEST */}
         <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-          {periods.map((p) => (
+          {periodsDesc.map((p) => (
             <option key={p} value={p}>
               {p}
             </option>
@@ -526,7 +536,7 @@ export default function DataExplorerApp() {
         {city} — {period} — {submarket || "City total"}
       </h2>
 
-      {/* ---- Market Metrics (first block kept) ---- */}
+      {/* ---- Market Metrics ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📊</span> Market Metrics
@@ -562,7 +572,7 @@ export default function DataExplorerApp() {
         />
       </div>
 
-      {/* ---- Leasing (first block kept) ---- */}
+      {/* ---- Leasing ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📝</span> Leasing Conditions
