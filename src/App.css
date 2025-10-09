@@ -68,9 +68,21 @@ select {
   text-align: right;
 }
 
-/* Comparison block header style — put this AFTER .section-header */
+/* Comparison block header */
 .section-header--orange {
   background: #e67e22;
-  color: #fff;
-  border-color: #c96a1a; /* note: .section-header has no border; this only matters if you add one */
+  color: #000;         /* black text as requested */
+  border-color: #c96a1a;
+}
+
+/* Optional: orange border for the whole comparison box */
+.section-box--orange {
+  border-color: #c96a1a;
+}
+
+/* Historical Trend header */
+.section-header--green {
+  background: #47D359; /* requested green */
+  color: #000;         /* black text */
+  border-color: #2aa944;
 }
