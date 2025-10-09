@@ -58,17 +58,17 @@ select {
   margin-right: 8px;
 }
 
-/* Historical Trend modifier (force override via double class) */
+/* Historical Trend header (green + black text) */
 .section-header.section-header--green {
-  background: #47D359;   /* requested green */
-  color: #000;           /* black text */
+  background: #47D359;
+  color: #000;
   border-color: #2aa944;
 }
 
-/* Market Comparison modifier (darker orange + white text) */
+/* Market Comparison header (dark orange + white text) */
 .section-header.section-header--orange {
-  background: #C65911;   /* darker orange for contrast */
-  color: #fff;           /* white text */
+  background: #C65911;
+  color: #fff;
   border-color: #9e460e;
 }
 
