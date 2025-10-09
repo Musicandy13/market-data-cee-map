@@ -1,3 +1,4 @@
+/* ---------- Base layout ---------- */
 body {
   font-family: Arial, sans-serif;
   background: #f9fafc;
@@ -29,17 +30,24 @@ select {
   background: #fff;
 }
 
+/* ---------- Section boxes ---------- */
 .section-box {
   border: 2px solid #003366;
   border-radius: 6px;
   margin: 20px 0;
-  background: white;
+  background: #fff;
   overflow: hidden;
 }
 
+/* Optional: orange border for the comparison box */
+.section-box.section-box--orange {
+  border-color: #9e460e;
+}
+
+/* ---------- Section headers ---------- */
 .section-header {
-  background: #003366;
-  color: white;
+  background: #003366;   /* default dark blue */
+  color: #fff;
   font-weight: bold;
   padding: 10px;
   display: flex;
@@ -50,6 +58,21 @@ select {
   margin-right: 8px;
 }
 
+/* Historical Trend modifier (force override via double class) */
+.section-header.section-header--green {
+  background: #47D359;   /* requested green */
+  color: #000;           /* black text */
+  border-color: #2aa944;
+}
+
+/* Market Comparison modifier (darker orange + white text) */
+.section-header.section-header--orange {
+  background: #C65911;   /* darker orange for contrast */
+  color: #fff;           /* white text */
+  border-color: #9e460e;
+}
+
+/* ---------- Rows ---------- */
 .row {
   display: flex;
   padding: 10px 12px;
@@ -66,23 +89,4 @@ select {
 .row-value {
   width: 220px;
   text-align: right;
-}
-
-/* Comparison block header */
-.section-header--orange {
-  background: #e67e22;
-  color: #000;         /* black text as requested */
-  border-color: #c96a1a;
-}
-
-/* Optional: orange border for the whole comparison box */
-.section-box--orange {
-  border-color: #c96a1a;
-}
-
-/* Historical Trend header */
-.section-header--green {
-  background: #47D359; /* requested green */
-  color: #000;         /* black text */
-  border-color: #2aa944;
 }
