@@ -45,7 +45,6 @@ function coerceNumber(v) {
   return Number.isNaN(num) ? null : num;
 }
 
-// 🆕 helper to display ranges like “150 - 200”
 function formatMaybeRange(v, kind = "number") {
   if (v === null || v === undefined || v === "") return "–";
   if (typeof v === "number") return kind === "money" ? fmtMoney(v) : fmtNumber(v);
@@ -113,7 +112,6 @@ function buildTrendSeries(raw, country, city, submarket, metric) {
   return out;
 }
 
-/* ===== Tooltip for Trend chart ===== */
 const SingleTooltip = ({ active, payload, label, metric }) => {
   if (!active || !payload || !payload.length) return null;
   const val = payload[0]?.value;
@@ -135,7 +133,6 @@ const SingleTooltip = ({ active, payload, label, metric }) => {
   );
 };
 
-/* ===== Trend chart ===== */
 function BarTrendChart({ data, metric }) {
   if (!data || data.length === 0) return <div style={{ marginTop: 10 }}>No data for this metric.</div>;
 
@@ -158,14 +155,18 @@ function BarTrendChart({ data, metric }) {
         <Tooltip content={<SingleTooltip metric={metric} />} />
         <Line type="monotone" dataKey="value" stroke="#999" strokeDasharray="4 4" dot={{ r: 3, fill: "#666" }} />
         <Bar dataKey="value" fill="#003366" radius={[4, 4, 0, 0]}>
-          <LabelList dataKey="value" position="top" formatter={(v) => formatValue(v)} style={{ fill: "#003366", fontSize: "12px" }} />
+          <LabelList
+            dataKey="value"
+            position="top"
+            formatter={(v) => formatValue(v)}
+            style={{ fill: "#003366", fontSize: "12px" }}
+          />
         </Bar>
       </ComposedChart>
     </ResponsiveContainer>
   );
 }
 
-/* ===== Market Comparison ===== */
 function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   const [country2, setCountry2] = useState("");
   const [city2, setCity2] = useState("");
@@ -181,7 +182,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
     const cities = Object.keys(raw.countries[firstC]?.cities || {});
     const firstCity = cities[0] || "";
     const periods = Object.keys(raw.countries[firstC]?.cities?.[firstCity]?.periods || {});
-    const firstPeriod = periods[0] || "";
+    const firstPeriod = periods[periods.length - 1] || "";
     const subs =
       (firstPeriod &&
         Object.keys(
@@ -203,12 +204,12 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
       return;
     }
     if (!cities.includes(city2)) setCity2(cities[0]);
-  }, [country2, raw]); // eslint-disable-line
+  }, [country2, raw]);
 
   useEffect(() => {
     if (!country2 || !city2) return;
     const periods = Object.keys(raw?.countries?.[country2]?.cities?.[city2]?.periods || {});
-    const firstPeriod = periods[0] || "";
+    const firstPeriod = periods[periods.length - 1] || "";
     const subs = Object.keys(
       raw?.countries?.[country2]?.cities?.[city2]?.periods?.[firstPeriod]?.subMarkets || {}
     );
@@ -217,7 +218,7 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
       return;
     }
     if (!subs.includes(submarket2)) setSubmarket2(subs[0]);
-  }, [country2, city2, raw]); // eslint-disable-line
+  }, [country2, city2, raw]);
 
   if (!raw?.countries) return null;
 
@@ -363,7 +364,6 @@ function ComparisonBlock({ raw, baseCountry, baseCity, baseSubmarket }) {
   );
 }
 
-/* ===== Main App (selectors + metrics + leasing + trend + comparison) ===== */
 export default function DataExplorerApp() {
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -375,7 +375,6 @@ export default function DataExplorerApp() {
   const [period, setPeriod] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("primeRentEurSqmMonth");
 
-  // initial load
   useEffect(() => {
     setLoading(true);
     fetch("/market_data.json")
@@ -394,7 +393,7 @@ export default function DataExplorerApp() {
         const cities = Object.keys(json?.countries?.[firstCountry]?.cities || {});
         const firstCity = cities[0] || "";
         const periods = Object.keys(json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {});
-        const firstPeriod = periods[0] || "";
+        const firstPeriod = periods[periods.length - 1] || "";
         const subs = Object.keys(
           json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets || {}
         );
@@ -456,7 +455,6 @@ export default function DataExplorerApp() {
     <div style={{ fontFamily: "Arial, sans-serif", padding: "20px" }}>
       <h1>{city || "Market"} Office Market</h1>
 
-      {/* ====== INPUT BLOCK ====== */}
       <div>
         <select
           value={country}
@@ -524,7 +522,6 @@ export default function DataExplorerApp() {
         {city} — {period} — {submarket || "City total"}
       </h2>
 
-      {/* ---- Market Metrics ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📊</span> Market Metrics
@@ -560,7 +557,6 @@ export default function DataExplorerApp() {
         />
       </div>
 
-      {/* ---- Leasing ---- */}
       <div className="section-box">
         <div className="section-header">
           <span>📝</span> Leasing Conditions
@@ -583,7 +579,6 @@ export default function DataExplorerApp() {
         />
       </div>
 
-      {/* ---- Historical Trend ---- */}
       <div className="section-box">
         <div className="section-header section-header--green">
           <span>📈</span> Historical Trend
@@ -617,7 +612,6 @@ export default function DataExplorerApp() {
         </div>
       </div>
 
-      {/* ---- Market Comparison ---- */}
       <ComparisonBlock raw={raw} baseCountry={country} baseCity={city} baseSubmarket={submarket} />
     </div>
   );
