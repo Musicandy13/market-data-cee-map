@@ -67,3 +67,10 @@ select {
   width: 220px;
   text-align: right;
 }
+
+/* Comparison block header style — put this AFTER .section-header */
+.section-header--orange {
+  background: #e67e22;
+  color: #fff;
+  border-color: #c96a1a; /* note: .section-header has no border; this only matters if you add one */
+}
