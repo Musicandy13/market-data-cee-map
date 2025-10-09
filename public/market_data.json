@@ -5766,9 +5766,9 @@
             },
             "subMarkets":{
               "Bucharest Total":{
-                "totalStock":null,
+                "totalStock":3412086,
                 "vacancy":540430,
-                "vacancyRate":null,
+                "vacancyRate":0.1584,
                 "takeUp":157304,
                 "netAbsorption":29248,
                 "completionsYTD":102500,
@@ -7766,4 +7766,5 @@
       "rates": "decimal"
     }
   }
+
 }
