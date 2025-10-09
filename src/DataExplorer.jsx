@@ -393,7 +393,14 @@ export default function DataExplorerApp() {
         const cities = Object.keys(json?.countries?.[firstCountry]?.cities || {});
         const firstCity = cities[0] || "";
         const periods = Object.keys(json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods || {});
-        const firstPeriod = periods[periods.length - 1] || "";
+        const sortPeriods = (a, b) => {
+          const [qa, ya] = a.split(" ");
+          const [qb, yb] = b.split(" ");
+          if (ya !== yb) return Number(ya) - Number(yb);
+          return Number(qa.replace("Q", "")) - Number(qb.replace("Q", ""));
+        };
+        const sortedPeriods = periods.sort(sortPeriods);
+        const firstPeriod = sortedPeriods[sortedPeriods.length - 1] || "";
         const subs = Object.keys(
           json?.countries?.[firstCountry]?.cities?.[firstCity]?.periods?.[firstPeriod]?.subMarkets || {}
         );
