@@ -600,7 +600,7 @@ export default function DataExplorerApp() {
               { key: "totalStock", label: "Total Stock (sqm)" },
               { key: "vacancy", label: "Vacancy (sqm)" },
               { key: "vacancyRate", label: "Vacancy Rate (%)" },
-              { key: "NetAbsorption", label: "Net Absorption (sqm, YTD" },
+              { key: "takeUp", label: "Take-up (sqm, YTD)" },
               { key: "primeRentEurSqmMonth", label: "Prime Rent (€/sqm/month)" },
               { key: "averageRentEurSqmMonth", label: "Average Rent (€/sqm/month)" },
               { key: "primeYield", label: "Prime Yield (%)" },
