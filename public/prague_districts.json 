@@ -1,0 +1,85 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 1", "color": "#d40072" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.403, 50.090], [14.414, 50.090], [14.414, 50.082], [14.403, 50.082], [14.403, 50.090]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 2", "color": "#8b8b8b" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.414, 50.090], [14.425, 50.090], [14.425, 50.082], [14.414, 50.082], [14.414, 50.090]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 3", "color": "#48b14b" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.425, 50.090], [14.436, 50.090], [14.436, 50.082], [14.425, 50.082], [14.425, 50.090]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 4", "color": "#a36ccf" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.414, 50.082], [14.425, 50.082], [14.425, 50.074], [14.414, 50.074], [14.414, 50.082]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 5", "color": "#e88f47" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.403, 50.082], [14.414, 50.082], [14.414, 50.074], [14.403, 50.074], [14.403, 50.082]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 6", "color": "#2d8659" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.392, 50.098], [14.403, 50.098], [14.403, 50.090], [14.392, 50.090], [14.392, 50.098]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 7", "color": "#00b5ff" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.403, 50.098], [14.414, 50.098], [14.414, 50.090], [14.403, 50.090], [14.403, 50.098]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 8", "color": "#e04040" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.414, 50.098], [14.425, 50.098], [14.425, 50.090], [14.414, 50.090], [14.414, 50.098]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 9", "color": "#ffd93b" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.425, 50.098], [14.436, 50.098], [14.436, 50.090], [14.425, 50.090], [14.425, 50.098]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Prague 10", "color": "#6f4f28" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14.425, 50.082], [14.436, 50.082], [14.436, 50.074], [14.425, 50.074], [14.425, 50.082]]]
+      }
+    }
+  ]
+}
