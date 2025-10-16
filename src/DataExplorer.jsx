@@ -379,7 +379,7 @@ export default function DataExplorerApp() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${import.meta.env.BASE_URL}market_data.json`)
+fetch(`${import.meta.env.BASE_URL}market_data.json?ts=${Date.now()}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
